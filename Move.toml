@@ -1,0 +1,9 @@
+[package]
+name = 'AptosinoSandbox'
+version = '1.0.0'
+
+[addresses]
+aptosino = "0x100"
+
+[dependencies]
+AptosFramework = { local = "../../../aptos-core/aptos-move/framework/aptos-framework" }
