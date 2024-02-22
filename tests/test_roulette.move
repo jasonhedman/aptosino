@@ -178,7 +178,7 @@ module aptosino::test_roulette {
     fun get_fee(amount: u64): u64 { amount * FEE_BPS / FEE_DIVISOR }
     
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
-    fun test_spin_wheel_win(framework: &signer, aptosino: &signer, player: &signer) {
+    fun test_spin_wheel_win_multiplier_2(framework: &signer, aptosino: &signer, player: &signer) {
         setup_roulette_with_player(framework, aptosino, player);
         
         let house_balance = roulette::get_house_balance();
@@ -197,7 +197,7 @@ module aptosino::test_roulette {
     }
     
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
-    fun test_spin_wheel_lose(framework: &signer, aptosino: &signer, player: &signer) {
+    fun test_spin_wheel_lose_multiplier_2(framework: &signer, aptosino: &signer, player: &signer) {
         setup_roulette_with_player(framework, aptosino, player);
         
         let house_balance = roulette::get_house_balance();
@@ -212,6 +212,48 @@ module aptosino::test_roulette {
         let user_balance_change = user_balance - coin::balance<AptosCoin>(signer::address_of(player));
         assert!(user_balance_change == BET_AMOUNT, 0);
         
+        assert!(get_accrued_fees() == fee, 0);
+    }
+
+    #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
+    fun test_spin_wheel_win_multiplier_4(framework: &signer, aptosino: &signer, player: &signer) {
+        setup_roulette_with_player(framework, aptosino, player);
+
+        let house_balance = roulette::get_house_balance();
+        let user_balance = coin::balance<AptosCoin>(signer::address_of(player));
+        let fee = get_fee(BET_AMOUNT);
+        
+        let multiplier = 4;
+
+        roulette::test_spin_wheel(player, BET_AMOUNT, multiplier, 0, 0);
+
+        let house_balance_change = house_balance - roulette::get_house_balance();
+        assert!(house_balance_change == BET_AMOUNT * (multiplier - 1) - fee , 0);
+
+        let user_balance_change = coin::balance<AptosCoin>(signer::address_of(player)) - user_balance;
+        assert!(user_balance_change == BET_AMOUNT * (multiplier - 1) - fee, 0);
+
+        assert!(get_accrued_fees() == fee, 0);
+    }
+
+    #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
+    fun test_spin_wheel_lose_multiplier_4(framework: &signer, aptosino: &signer, player: &signer) {
+        setup_roulette_with_player(framework, aptosino, player);
+
+        let house_balance = roulette::get_house_balance();
+        let user_balance = coin::balance<AptosCoin>(signer::address_of(player));
+        let fee = get_fee(BET_AMOUNT);
+        
+        let multiplier = 4;
+
+        roulette::test_spin_wheel(player, BET_AMOUNT, multiplier, 0, 1);
+
+        let house_balance_change = roulette::get_house_balance() - house_balance;
+        assert!(house_balance_change == BET_AMOUNT, 0);
+
+        let user_balance_change = user_balance - coin::balance<AptosCoin>(signer::address_of(player));
+        assert!(user_balance_change == BET_AMOUNT, 0);
+
         assert!(get_accrued_fees() == fee, 0);
     }
     
