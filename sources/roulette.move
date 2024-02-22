@@ -9,7 +9,10 @@ module aptosino::roulette {
 
     // constants
     
+    /// The seed for the house resource account
     const ACCOUNT_SEED: vector<u8> = b"APTOSINO_COIN_FLIP";
+    /// The divisor for the fee in basis points
+    const FEE_BPS_DIVISOR: u64 = 10000;
     
     // error codes
     
@@ -23,12 +26,16 @@ module aptosino::roulette {
     const EBetLessThanMinBet: u64 = 104;
     /// The bet amount exceeds the maximum bet allowed
     const EBetExceedsMaxBet: u64 = 105;
+    /// The bet multiplier is less than the minimum multiplier allowed
+    const EBetLessThanMinMultiplier: u64 = 106;
     /// The bet multiplier exceeds the maximum multiplier allowed
-    const EBetExceedsMaxMultiplier: u64 = 106;
+    const EBetExceedsMaxMultiplier: u64 = 107;
     /// The predicted outcome is greater than the maximum outcome allowed
-    const EPredictedOutcomeGreaterThanMaxOutcome: u64 = 107;
+    const EPredictedOutcomeGreaterThanMaxOutcome: u64 = 108;
     /// The house does not have enough balance to pay the player
-    const EHouseInsufficientBalance: u64 = 108;
+    const EHouseInsufficientBalance: u64 = 109;
+    /// The signer does not have sufficient balance to deposit the amount
+    const EAdminInsufficientBalance: u64 = 110;
 
     struct House has key {
         /// The address of the admin of the house; the admin can withdraw the accrued fees and set the parameters of the house
@@ -49,9 +56,10 @@ module aptosino::roulette {
     
     /// Initializes the house with the given parameters and deposits the given coins into the house resource account
     /// * deployer: the signer of the account that deployed the module
-    /// * coins: the coins to deposit into the house resource account
+    /// * initial_coins: the coins to deposit into the house resource account
     /// * min_bet: the minimum bet allowed
     /// * max_bet: the maximum bet allowed
+    /// * max_multiplier: the maximum multiplier allowed
     /// * fee_bps: the fee in basis points
     public entry fun init(
         deployer: &signer,
@@ -60,11 +68,12 @@ module aptosino::roulette {
         max_bet: u64, 
         max_multiplier: u64,
         fee_bps: u64
-    ) {
+    ) acquires House {
+        assert_signer_is_deployer(deployer);
+        
         let (resourse_acc, signer_cap) = account::create_resource_account(deployer, ACCOUNT_SEED);
         
         coin::register<AptosCoin>(&resourse_acc);
-        coin::transfer<AptosCoin>(deployer, signer::address_of(&resourse_acc), initial_coins);
         
         move_to(&resourse_acc, House {
             admin_address: signer::address_of(deployer),
@@ -75,12 +84,14 @@ module aptosino::roulette {
             fee_bps,
             accrued_fees: 0,
         });
+        
+        deposit(deployer, initial_coins);
     }
     
     // game functions
     
-    /// Flips a coin and returns the result
-    /// * signer: the signer of the player account
+    /// Spins the wheel and pays out the winnings to the player
+    /// * player: the signer of the player account
     /// * bet_coins: the coins to bet
     /// * multiplier: the multiplier of the bet (the payout is bet * multiplier)
     /// * predicted_outcome: the number the player predicts (must be less than the multiplier)
@@ -90,28 +101,40 @@ module aptosino::roulette {
         multiplier: u64,
         predicted_outcome: u64
     ) acquires House {
-        let player_address = signer::address_of(player);
-        assert_player_has_enough_balance(player_address, bet_amount_input);
-        
-        let house = borrow_global_mut<House>(get_house_address());
-        
-        let fee = bet_amount_input * house.fee_bps / 10000;
-        let fee_coins = coin::withdraw<AptosCoin>(player, fee);
-        coin::deposit(get_house_address(), fee_coins);
-        house.accrued_fees = house.accrued_fees + fee;
-        
-        let bet_amount = bet_amount_input - fee;
-        
-        assert_bet_is_valid(house, bet_amount, multiplier, predicted_outcome);
-        assert_house_has_enough_balance(bet_amount, multiplier);
-
         let result = randomness::u64_range(0, multiplier);
+        spin_wheel_impl(player, bet_amount_input, multiplier, predicted_outcome, result);
+    }
+    
+    /// Implementation of the spin_wheel function, extracted to allow testing
+    /// * player: the signer of the player account
+    /// * bet_coins: the coins to bet
+    /// * multiplier: the multiplier of the bet (the payout is bet * multiplier)
+    /// * predicted_outcome: the number the player predicts (must be less than the multiplier)
+    /// * result: the result of the spin
+    fun spin_wheel_impl(
+        player: &signer,
+        bet_amount: u64,
+        multiplier: u64,
+        predicted_outcome: u64,
+        result: u64
+    ) acquires House {
+        let player_address = signer::address_of(player);
+        assert_player_has_enough_balance(player_address, bet_amount);
+
+        let house = borrow_global_mut<House>(get_house_address());
+
+        assert_bet_is_valid(house, bet_amount, multiplier, predicted_outcome);
+        assert_house_has_enough_balance(house, bet_amount, multiplier);
+
+        let fee = bet_amount * house.fee_bps / FEE_BPS_DIVISOR;
+        house.accrued_fees = house.accrued_fees + fee;
+
         if (result == predicted_outcome) {
             // player wins, pay out the winnings
             coin::transfer<AptosCoin>(
                 &account::create_signer_with_capability(&house.signer_cap),
                 player_address,
-                bet_amount * (multiplier - 1)
+                bet_amount * (multiplier - 1) - fee
             );
         } else {
             // player loses, the house takes the bet
@@ -143,8 +166,9 @@ module aptosino::roulette {
     /// Adds coins to the house resource account
     /// * signer: the signer of the admin account
     /// * amount: the amount of coins to add
-    public entry fun deposit(signer: &signer, amount: u64) {
+    public entry fun deposit(signer: &signer, amount: u64) acquires House {
         assert_signer_is_admin(signer);
+        assert_admin_has_enough_balance(signer::address_of(signer), amount);
         coin::transfer<AptosCoin>(signer, get_house_address(), amount);
     }
     
@@ -216,9 +240,21 @@ module aptosino::roulette {
     }
     
     #[view]
+    /// Returns the maximum multiplier allowed
+    public fun get_max_multiplier(): u64 acquires House {
+        borrow_global<House>(get_house_address()).max_multiplier
+    }
+    
+    #[view]
     /// Returns the maximum bet allowed
     public fun get_fee_bps(): u64 acquires House {
         borrow_global<House>(get_house_address()).fee_bps
+    }
+    
+    #[view]
+    /// Returns the accrued fees
+    public fun get_accrued_fees(): u64 acquires House {
+        borrow_global<House>(get_house_address()).accrued_fees
     }
     
     #[view]
@@ -235,8 +271,8 @@ module aptosino::roulette {
     }
     
     /// Asserts that the signer is the admin of the house
-    fun assert_signer_is_admin(signer: &signer) {
-        assert!(signer::address_of(signer) == get_house_address(), ESignerNotAdmin);
+    fun assert_signer_is_admin(signer: &signer) acquires House {
+        assert!(signer::address_of(signer) == get_admin_address(), ESignerNotAdmin);
     }
     
     /// Asserts that the player has enough balance to bet the given amount
@@ -244,6 +280,13 @@ module aptosino::roulette {
     /// * amount: the amount to bet
     fun assert_player_has_enough_balance(player_address: address, amount: u64) {
         assert!(coin::balance<AptosCoin>(player_address) >= amount, EPlayerInsufficientBalance);
+    }
+    
+    /// Asserts that the admin has enough balance to deposit the given amount
+    /// * admin_address: the address of the admin
+    /// * amount: the amount to deposit
+    fun assert_admin_has_enough_balance(admin_address: address, amount: u64) {
+        assert!(coin::balance<AptosCoin>(admin_address) >= amount, EAdminInsufficientBalance);
     }
     
     /// Asserts that the bet is valid
@@ -254,6 +297,7 @@ module aptosino::roulette {
     fun assert_bet_is_valid(house: &House, bet_amount: u64, multiplier: u64, predicted_outcome: u64) {
         assert!(bet_amount >= house.min_bet, EBetLessThanMinBet);
         assert!(bet_amount <= house.max_bet, EBetExceedsMaxBet);
+        assert!(multiplier > 1, EBetLessThanMinMultiplier);
         assert!(multiplier <= house.max_multiplier, EBetExceedsMaxMultiplier);
         assert!(predicted_outcome < multiplier, EPredictedOutcomeGreaterThanMaxOutcome);
     }
@@ -261,10 +305,23 @@ module aptosino::roulette {
     /// Asserts that the house has enough balance to pay the player
     /// * bet_amount: the amount to bet
     /// * multiplier: the multiplier of the bet
-    fun assert_house_has_enough_balance(bet_amount: u64, multiplier: u64) {
+    fun assert_house_has_enough_balance(house: &House, bet_amount: u64, multiplier: u64) {
         assert!(
-            coin::balance<AptosCoin>(get_house_address()) >= bet_amount * (multiplier - 1), 
+            coin::balance<AptosCoin>(get_house_address()) - house.accrued_fees >= bet_amount * (multiplier - 1), 
             EHouseInsufficientBalance
         );
+    }
+    
+    // test functions
+    
+    #[test_only]
+    public fun test_spin_wheel(
+        player: &signer, 
+        bet_amount: u64,
+        multiplier: u64,
+        predicted_outcome: u64,
+        result: u64
+    ) acquires House {
+        spin_wheel_impl(player, bet_amount, multiplier, predicted_outcome, result);
     }
 }
