@@ -5,6 +5,7 @@ module aptosino::roulette {
     use aptos_framework::account::{Self, SignerCapability};
     use aptos_framework::aptos_coin::AptosCoin;
     use aptos_framework::coin;
+    use aptos_framework::event;
     use aptos_framework::randomness;
 
     // constants
@@ -36,7 +37,10 @@ module aptosino::roulette {
     const EHouseInsufficientBalance: u64 = 109;
     /// The signer does not have sufficient balance to deposit the amount
     const EAdminInsufficientBalance: u64 = 110;
+    
+    // data structures
 
+    /// Data stored on the house resource account
     struct House has key {
         /// The address of the admin of the house; the admin can withdraw the accrued fees and set the parameters of the house
         admin_address: address,
@@ -52,6 +56,25 @@ module aptosino::roulette {
         fee_bps: u64,
         /// The amount of accrued fees; the admin can withdraw this amount and reset it to 0
         accrued_fees: u64,
+    }
+    
+    // events
+    
+    #[event]
+    /// Event emitted when the wheel is spun
+    struct SpinWheelEvent has drop, store {
+        /// The address of the player
+        player_address: address,
+        /// The amount bet
+        bet_amount: u64,
+        /// The multiplier of the bet
+        multiplier: u64,
+        /// The number the player predicted
+        predicted_outcome: u64,
+        /// The result of the spin
+        result: u64,
+        /// The payout to the player
+        payout: u64,
     }
     
     /// Initializes the house with the given parameters and deposits the given coins into the house resource account
@@ -128,14 +151,16 @@ module aptosino::roulette {
 
         let fee = bet_amount * house.fee_bps / FEE_BPS_DIVISOR;
         house.accrued_fees = house.accrued_fees + fee;
-
-        if (result == predicted_outcome) {
+        
+        let payout = if (result == predicted_outcome) {
             // player wins, pay out the winnings
+            let payout = bet_amount * (multiplier - 1) - fee;
             coin::transfer<AptosCoin>(
                 &account::create_signer_with_capability(&house.signer_cap),
                 player_address,
                 bet_amount * (multiplier - 1) - fee
             );
+            payout
         } else {
             // player loses, the house takes the bet
             coin::transfer<AptosCoin>(
@@ -143,7 +168,17 @@ module aptosino::roulette {
                 get_house_address(),
                 bet_amount
             );
+            0
         };
+        
+        event::emit(SpinWheelEvent {
+            player_address,
+            bet_amount,
+            multiplier,
+            predicted_outcome,
+            result,
+            payout,
+        });
     }
     
     // admin functions
