@@ -19,26 +19,60 @@ module aptosino::slots {
     const EInvalidBetAmount: u64 = 102;
     /// The number of reels is invalid
     const EInvalidNumberReels: u64 = 102;
+    /// The number of visible rows is invalid
+    const EInvalidNumberRows: u64 = 104;
     /// The number of stops per reel is invalid
-    const EInvalidNumberStops: u64 = 103;
+    const EInvalidNumberStops: u64 = 105;
     /// The symbol sequence is invalid
-    const EInvalidSymbolSequence: u64 = 104;
+    const EInvalidSymbolSequence: u64 = 106;
 
-
-    // events
-    struct SlotMachine has drop {
-        /// The number of visual reels (3, 4 or 5)
+    // structs
+    struct SlotMachine has drop, store {
+        /// The number of visual reels / columns
         num_reels: u8,
-        /// The number of visual rows (3, 4 or 5)
+        /// The number of visual stops / rows
         num_rows: u8,
         /// The number of stops per reel
         num_stops: u64,
         /// The symbol array of the slot machine (identical across all reels)
+        /// Joker symbol is represented by 0
         symbol_sequence: vector<u8>,
-        /// The number of lines active
-        num_lines: u8,
-        /// The payout table
-        payout_table: vector<u64>,
+        /// The payout table is a vector of vectors, where the first index
+        /// is associated with a specific symbol and the second index is
+        /// associated with the number of consecutive symbols in a line
+        /// The payout is the product of the bet and the payout_table value
+        payout_table: vector<vector<u8>>,
+        /// The lines available to the player
+        /// The lines are vectors of the indexes of the stops included numbered
+        /// from top to bottom
+        lines: vector<vector<u8>>,
+    }
+
+    /// Asserts that the slot machine is valid
+    fun assert_slot_machine_is_valid(
+        num_reels: u8,
+        num_rows: u8,
+        num_stops: u64,
+        symbol_sequence: vector<u8>,
+        payout_table: vector<vector<u8>>,
+        lines: vector<vector<u8>>
+    ) {
+        assert!(num_reels > 0, EInvalidNumberReels);
+        assert!(num_rows > 0, EInvalidNumberRows);
+        assert!(num_stops > 0, EInvalidNumberStops);
+
+        /// If any duplicate symbols are found, the payout table entry for each must be identical
+        let i = 0;
+        while (i < vector::length(&symbol_sequence)) {
+            let j = i + 1;
+            while (j < vector::length(&symbol_sequence)) {
+                if (symbol_sequence[i] == symbol_sequence[j]) {
+                    assert!(payout_table[i] == payout_table[j], EInvalidSymbolSequence);
+                };
+                j = j + 1;
+            };
+            i = i + 1;
+        };
     }
 
     #[event]
@@ -100,8 +134,6 @@ module aptosino::slots {
         };
         let payout = spin_slots_calc_payout(num_lines, num_reels, num_stops, symbol_sequence, payout_table, result);
     }
-
-
 
     fun spin_slots_calc_payout(
         num_lines: u64,
