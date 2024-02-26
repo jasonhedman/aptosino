@@ -25,6 +25,8 @@ module aptosino::slots {
     const EInvalidNumberStops: u64 = 105;
     /// The symbol sequence is invalid
     const EInvalidSymbolSequence: u64 = 106;
+    /// The payout table is invalid
+    const EInvalidPayoutTable: u64 = 107;
 
     // structs
     struct SlotMachine has drop, store {
@@ -35,7 +37,7 @@ module aptosino::slots {
         /// The number of stops per reel
         num_stops: u64,
         /// The symbol array of the slot machine (identical across all reels)
-        /// Joker symbol is represented by 0
+        /// Joker symbol is represented by -1
         symbol_sequence: vector<u8>,
         /// The payout table is a vector of vectors, where the first index
         /// is associated with a specific symbol and the second index is
@@ -73,6 +75,28 @@ module aptosino::slots {
             };
             i = i + 1;
         };
+
+        /// The payout table must have the same number of entries as the symbol sequence
+        assert!(vector::length(&symbol_sequence) == vector::length(&payout_table), EInvalidSymbolSequence);
+
+        /// The payout table entries must be valid
+        let i = 0;
+            while(i < vector::length(&payout_table)) {
+                /// The payout table entries must have the same length as the number of reels
+                assert!(vector::length(&payout_table[i]) == (num_reels as u64), EInvalidPayoutTable);
+            };
+
+        /// The lines must be valid
+        let i = 0;
+        while (i < vector::length(&lines)) {
+            let j = 0;
+            assert!(vector::length(&lines[i]) == (num_reels as u64), EInvalidSymbolSequence);
+            while (j < vector::length(&lines[i])) {
+                assert!(lines[i][j] < num_rows && lines[i][j] < num_stops, EInvalidSymbolSequence);
+                j = j + 1;
+            };
+            i = i + 1;
+        };
     }
 
     #[event]
@@ -82,18 +106,11 @@ module aptosino::slots {
         player_address: address,
         /// The amount bet
         bet_amount: u64,
-        /// The number of stops per reel
-        num_stops: u64,
-        /// The symbol array of the slot machine (identical across all lines)
-        /// There can be duplicates in the array, which will be weighted accordingly
-        /// There might be a joker symbol, which will be weighted accordingly as if
-        /// it was a duplicate of all other symbols
-        symbol_sequence: vector<u8>,
-        /// The number of lines active
-        num_lines: u8,
+        /// The slot machine
+        slot_machine: SlotMachine,
         /// The result of the spin
         result: vector<vector<u8>>,
-        /// Return vector of winning lines numbered for front end
+        /// Return vector of winning lines (empty if no win)
         winning_lines: vector<u8>,
         /// The payout of the spin
         payout: u64,
