@@ -53,7 +53,9 @@ module aptosino::slots {
         /// from top to bottom
         /// The practical bet size is divided by the number of lines
         lines: vector<vector<u8>>,
-        /// Unit bet size
+        /// Unit bet size - calculated internally, can be fetched by the player
+        /// Bet should be a multiple of this, so best to design the game so that
+        /// this is a whole number
         unit_bet: u64,
     }
 
@@ -108,7 +110,7 @@ module aptosino::slots {
         };
 
         /// The slot machine is valid (helper)
-        assert_slot_machine_is_EV_neutral(num_reels, num_rows, num_stops, symbol_sequence, payout_table, unit_bet);
+        calculate_EV_of_line(num_reels, num_rows, num_stops, symbol_sequence, payout_table, unit_bet);
     }
 
     /// Asserts that a bet on a single line is EV neutral
@@ -124,7 +126,7 @@ module aptosino::slots {
     /// A line contains a specific index for each reel
     /// The number of possible n of a kind is num_stops choose (n)
     /// The math for this is num_stops! / (n! * (num_stops - n)!)
-    /// We need to subtract the possibilities of n of a 
+    /// We need to subtract the possibilities of n of a
     /// EV should equal unit_bet
     /// We multiply the number of n of a kind by the payout for n of a kind for each symbol
     /// We want to avoid floating point values, so we will do everything in terms of permutations
@@ -137,7 +139,6 @@ module aptosino::slots {
         unit_bet: u64,
     ) {
         let ev = 0;
-
     }
 
     #[event]
