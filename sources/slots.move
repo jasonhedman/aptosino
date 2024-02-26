@@ -15,27 +15,48 @@ module aptosino::slots {
 
     /// Player does not have enough balance to bet
     const EPlayerInsufficientBalance: u64 = 101;
-    /// The predicted outcome is greater than the maximum outcome allowed
-    const EPredictedOutcomeGreaterThanMaxOutcome: u64 = 102;
+    /// The bet amount is invalid
+    const EInvalidBetAmount: u64 = 102;
+    /// The number of reels is invalid
+    const EInvalidNumberReels: u64 = 102;
+    /// The number of stops per reel is invalid
+    const EInvalidNumberStops: u64 = 103;
+    /// The symbol sequence is invalid
+    const EInvalidSymbolSequence: u64 = 104;
+
 
     // events
+    struct SlotMachine has drop {
+        /// The number of visual reels (3, 4 or 5)
+        num_reels: u8,
+        /// The number of visual rows (3, 4 or 5)
+        num_rows: u8,
+        /// The number of stops per reel
+        num_stops: u64,
+        /// The symbol array of the slot machine (identical across all reels)
+        symbol_sequence: vector<u8>,
+        /// The number of lines active
+        num_lines: u8,
+        /// The payout table
+        payout_table: vector<u64>,
+    }
 
     #[event]
-    /// Event emitted when the dice are rolled
+    /// Event emitted when the slots are spun
     struct SpinSlots has drop, store {
         /// The address of the player
         player_address: address,
         /// The amount bet
         bet_amount: u64,
-        /// The number of lines active
-        num_lines: u8,
-        /// The number the player predicted
-        num_reels: u8,
         /// The number of stops per reel
         num_stops: u64,
-        /// The array of the slot machine (identical across all lines)
-        /// Symbols are represented as numbers
+        /// The symbol array of the slot machine (identical across all lines)
+        /// There can be duplicates in the array, which will be weighted accordingly
+        /// There might be a joker symbol, which will be weighted accordingly as if
+        /// it was a duplicate of all other symbols
         symbol_sequence: vector<u8>,
+        /// The number of lines active
+        num_lines: u8,
         /// The result of the spin
         result: vector<vector<u8>>,
         /// Return vector of winning lines numbered for front end
@@ -77,7 +98,25 @@ module aptosino::slots {
             };
             vector::push_back(result_ref, reel);
         };
-        spin_slots_impl(player, bet_amount_input, num_lines, num_reels, num_stops, symbol_sequence, result);
+        let payout = spin_slots_calc_payout(num_lines, num_reels, num_stops, symbol_sequence, payout_table, result);
+    }
+
+
+
+    fun spin_slots_calc_payout(
+        num_lines: u64,
+        num_reels: u64,
+        num_stops: u64,
+        symbol_sequence: vector<u64>,
+        payout_table: vector<u64>,
+        result: vector<vector<u64>>
+    ) :u64 {
+        let payout = 0;
+        let i = 0;
+        while (i < num_lines) {
+
+        };
+        payout
     }
 
     /// Implementation of the roll_dice function, extracted to allow testing
@@ -133,7 +172,7 @@ module aptosino::slots {
 
     /// Asserts that the bet is valid
     /// * num_lines: the number of lines active
-    /// * num_reels: the number of reels
+    /// * num_reels: the number of reels in the slot machine (3, 4 or 5)
     /// * num_stops: the number of stops per reel
     /// * symbol_sequence: the sequence of symbols
     /// * payout_table: the payout table
@@ -146,7 +185,12 @@ module aptosino::slots {
         payout_table: vector<u64>,
         bet_amount: u64
     ) {
-
+        assert!(bet_amount > 0, EInvalidBetAmount);
+        assert!((num_reels >= 3) && (num_reels <= 5), EInvalidNumberReels);
+        assert!((num_stops >= ) && (num_reels <= 5), EInvalidNumberReels);
+        assert!(num_stops > 0, EInvalidNumberStops);
+        assert!(symbol_sequence.length() > 0, EInvalidSymbolSequence);
+        assert!(payout_table.length() > 0, EInvalidSymbolSequence);
     }
 
     // test functions
