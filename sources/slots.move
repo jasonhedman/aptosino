@@ -53,6 +53,8 @@ module aptosino::slots {
         /// from top to bottom
         /// The practical bet size is divided by the number of lines
         lines: vector<vector<u8>>,
+        /// Unit bet size
+        unit_bet: u64,
     }
 
     /// Asserts that the SlotMachine is valid
@@ -62,7 +64,8 @@ module aptosino::slots {
         num_stops: u64,
         symbol_sequence: vector<u8>,
         payout_table: vector<vector<u8>>,
-        lines: vector<vector<u8>>
+        lines: vector<vector<u8>>,
+        unit_bet: u64,
     ) {
         assert!(num_reels > 0, EInvalidNumberReels);
         assert!(num_rows > 0, EInvalidNumberRows);
@@ -105,27 +108,36 @@ module aptosino::slots {
         };
 
         /// The slot machine is valid (helper)
-        assert_slot_machine_is_EV_neutral(num_reels, num_rows, num_stops, symbol_sequence, payout_table, lines);
+        assert_slot_machine_is_EV_neutral(num_reels, num_rows, num_stops, symbol_sequence, payout_table, unit_bet);
     }
 
     /// Asserts that a bet on a single line is EV neutral
     /// The EV neutrality of bets on multiple lines is
     /// easily derived from this
-    fun assert_line_is_EV_neutral(
+    /// Duplicate symbols are allowed but must be identfied
+    /// and the math adjusted accordingly
+    /// Joker symbols are allowed and are represented by -1
+    /// Each reel is spun independently
+    /// The probability of each symbol is the same for each reel
+    /// The probability of each symbol is the same for each stop
+    /// The probability of each symbol is the same for each line
+    /// A line contains a specific index for each reel
+    /// The number of possible n of a kind is num_stops choose (n)
+    /// The math for this is num_stops! / (n! * (num_stops - n)!)
+    /// We need to subtract the possibilities of n of a 
+    /// EV should equal unit_bet
+    /// We multiply the number of n of a kind by the payout for n of a kind for each symbol
+    /// We want to avoid floating point values, so we will do everything in terms of permutations
+    fun calculate_EV_of_line(
         num_reels: u8,
         num_rows: u8,
         num_stops: u64,
         symbol_sequence: vector<u8>,
         payout_table: vector<vector<u8>>,
-        lines: vector<vector<u8>>
+        unit_bet: u64,
     ) {
-        let winning_permutation_sum: vector<u64> = vector::empty();
-        let winning_permutation_sum_ref = &mut winning_permutation_sum;
-        let winning_permutation_sum_weight: u64 = 0;
-        let i = 0;
-        while (i < num_reels) {
+        let ev = 0;
 
-        };
     }
 
     #[event]
