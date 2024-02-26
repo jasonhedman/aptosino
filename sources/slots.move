@@ -8,6 +8,7 @@ module aptosino::slots {
     use aptos_framework::randomness;
 
     use std::vector;
+    use std::vector::for_each;
 
     use aptosino::house;
 
@@ -23,6 +24,8 @@ module aptosino::slots {
     const EInvalidNumberRows: u64 = 104;
     /// The number of stops per reel is invalid
     const EInvalidNumberStops: u64 = 105;
+    /// The number of lines is invalid
+    const EInvalidNumberLines: u64 = 105;
     /// The symbol sequence is invalid
     const EInvalidSymbolSequence: u64 = 106;
     /// The payout table is invalid
@@ -43,14 +46,16 @@ module aptosino::slots {
         /// is associated with a specific symbol and the second index is
         /// associated with the number of consecutive symbols in a line
         /// The payout is the product of the bet and the payout_table value
+        /// associated with the symbol and the largest # of consecutive symbols
         payout_table: vector<vector<u8>>,
         /// The lines available to the player
         /// The lines are vectors of the indexes of the stops included numbered
         /// from top to bottom
+        /// The practical bet size is divided by the number of lines
         lines: vector<vector<u8>>,
     }
 
-    /// Asserts that the slot machine is valid
+    /// Asserts that the SlotMachine is valid
     fun assert_slot_machine_is_valid(
         num_reels: u8,
         num_rows: u8,
@@ -62,6 +67,7 @@ module aptosino::slots {
         assert!(num_reels > 0, EInvalidNumberReels);
         assert!(num_rows > 0, EInvalidNumberRows);
         assert!(num_stops > 0, EInvalidNumberStops);
+        assert!(vector::length(&lines) > 0, EInvalidNumberLines);
 
         /// If any duplicate symbols are found, the payout table entry for each must be identical
         let i = 0;
@@ -96,6 +102,29 @@ module aptosino::slots {
                 j = j + 1;
             };
             i = i + 1;
+        };
+
+        /// The slot machine is valid (helper)
+        assert_slot_machine_is_EV_neutral(num_reels, num_rows, num_stops, symbol_sequence, payout_table, lines);
+    }
+
+    /// Asserts that a bet on a single line is EV neutral
+    /// The EV neutrality of bets on multiple lines is
+    /// easily derived from this
+    fun assert_line_is_EV_neutral(
+        num_reels: u8,
+        num_rows: u8,
+        num_stops: u64,
+        symbol_sequence: vector<u8>,
+        payout_table: vector<vector<u8>>,
+        lines: vector<vector<u8>>
+    ) {
+        let winning_permutation_sum: vector<u64> = vector::empty();
+        let winning_permutation_sum_ref = &mut winning_permutation_sum;
+        let winning_permutation_sum_weight: u64 = 0;
+        let i = 0;
+        while (i < num_reels) {
+
         };
     }
 
@@ -157,6 +186,9 @@ module aptosino::slots {
         num_reels: u64,
         num_stops: u64,
         symbol_sequence: vector<u64>,
+        /// The payout table is a vector of vectors, where the first index
+        /// is associated with a specific symbol and the second index is
+        /// associated with the number of consecutive symbols in a line
         payout_table: vector<u64>,
         result: vector<vector<u64>>
     ) :u64 {
