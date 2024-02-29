@@ -15,6 +15,9 @@ module aptosino::roulette {
 
     // bet pattern
 
+    /// During initialization, the amount is verified to be non-zero, the number of predicted outcomes to be non-zero,
+    /// the bet is compared to the player's balance, and the predicted outcomes are verified to be within the range of
+    /// the machine's outcomes
     struct RouletteBet has store {
         /// The amount of the bet
         amount: u64,
@@ -25,7 +28,7 @@ module aptosino::roulette {
     }
 
 
-    // machine pattern
+    /// machine pattern
     struct RouletteMachine has key {
         /// The address of the linked house
         house_address: address,
@@ -39,8 +42,8 @@ module aptosino::roulette {
         categories: vector<RouletteCategory>,
     }
 
-    /// Verify on initialization that the categories are non-empty, and that the values in each category
-    /// are non-empty and unique and <= the size of the category
+    /// During initialization, the categories are verified to be valid, the house to be accurate, the developer
+    /// to be the deployer, and the edge to be non-negative and less than 100
     fun new_machine(house_address: address, developer_address: address, developer_edge: u8,
                     num_outcomes: u8, category_values: &vector<vector<u8>>)
     : RouletteMachine {
@@ -69,7 +72,7 @@ module aptosino::roulette {
         }
     }
 
-    // category pattern
+    /// Verify on initialization that the values are non-empty and unique and <= the size of the category
     struct RouletteCategory has store {
         /// The values of the category
         values: vector<u8>,
