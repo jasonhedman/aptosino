@@ -32,8 +32,8 @@ module aptosino::roulette {
     // events
 
     #[event]
-    /// Event emitted when the dice are rolled
-    struct SpinWheelAddress has drop, store {
+    /// Event emitted when the player spins the wheel
+    struct SpinWheelEvent has drop, store {
         /// The address of the player
         player_address: address,
         /// The amount of each bet
@@ -48,10 +48,10 @@ module aptosino::roulette {
 
     // game functions
 
-    /// Rolls the dice and pays out the winnings to the player
+    /// Spins the wheel and pays out the player
     /// * player: the signer of the player account
-    /// * bet_amount_inputs: the amounts to bet on each predicted outcome
-    /// * predicted_outcomes: the numbers the player predicts for each bet
+    /// * bet_amount_inputs: the amount to bet on each predicted outcome
+    /// * predicted_outcomes: the numbers the player predicts for each corresponding bet
     public entry fun spin_wheel(
         player: &signer,
         bet_amount_inputs: vector<u64>,
@@ -61,10 +61,10 @@ module aptosino::roulette {
         spin_wheel_impl(player, bet_amount_inputs, predicted_outcomes, result);
     }
 
-    /// Implementation of the roll_dice function, extracted to allow testing
+    /// Implementation of the spin_wheel function, extracted to allow testing
     /// * player: the signer of the player account
-    /// * bet_amounts: the amount to bet
-    /// * predicted_outcomes: the number the player predicts
+    /// * bet_amounts: the amount to bet on each predicted outcome
+    /// * predicted_outcomes: the numbers the player predicts for each corresponding bet
     /// * result: the result of the spin
     fun spin_wheel_impl(
         player: &signer,
@@ -102,7 +102,7 @@ module aptosino::roulette {
             i = i + 1;
         };
 
-        event::emit(SpinWheelAddress {
+        event::emit(SpinWheelEvent {
             player_address,
             bet_amounts,
             predicted_outcomes,
@@ -130,7 +130,7 @@ module aptosino::roulette {
         assert!(coin::balance<AptosCoin>(player_address) >= amount, EPlayerInsufficientBalance);
     }
 
-    /// Asserts that the bets are valid
+    /// Asserts that the number of bets and predicted outcomes are equal in length, non-empty, and non-zero
     /// * multiplier: the multiplier of the bet
     /// * bet_amounts: the amounts the player bets
     /// * predicted_outcome: the numbers the player predicts for each bet
@@ -138,13 +138,14 @@ module aptosino::roulette {
         assert!(vector::length(bet_amounts) == vector::length(predicted_outcomes), 
             ENumberOfBetsDoesNotMatchNumberOfPredictedOutcomes);
         assert!(vector::length(bet_amounts) > 0, ENumberOfBetsIsZero);
+        assert!(vector::all(predicted_outcomes, |outcomes| { vector::length(outcomes) > 0 }), 
+            ENumberOfPredictedOutcomesIsZero);
         assert!(vector::all(bet_amounts, |amount| { *amount > 0 }), EBetAmountIsZero);
     }
     
-    /// Asserts that a predicted outcome is valid
+    /// Asserts that each outcome in a vector of predicted outcomes is within the range of possible outcomes
     /// * predicted_outcome: the numbers the player predicts for each bet
     fun assert_predicted_outcome_is_valid(predicted_outcome: &vector<u8>) {
-        assert!(vector::length(predicted_outcome) > 0, ENumberOfPredictedOutcomesIsZero);
         vector::for_each(*predicted_outcome, |outcome| {
             assert!(outcome < NUM_OUTCOMES, EPredictedOutcomeOutOfRange);
         });
