@@ -18,7 +18,7 @@ module aptosino::roulette {
     /// During initialization, the amount is verified to be non-zero, the number of predicted outcomes to be non-zero,
     /// the bet is compared to the player's balance, and the predicted outcomes are verified to be within the range of
     /// the machine's outcomes
-    struct RouletteBet has store {
+    struct RouletteBet has store, drop {
         /// The amount of the bet
         amount: u64,
         /// The numbers the player predicts
@@ -26,7 +26,6 @@ module aptosino::roulette {
         /// Machine the bet is placed on
         machine: RouletteMachine,
     }
-
 
     /// machine pattern
     struct RouletteMachine has key {
