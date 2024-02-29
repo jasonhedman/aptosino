@@ -9,10 +9,83 @@ module aptosino::roulette {
     use aptos_framework::randomness;
 
     use aptosino::house;
-    
-    // constants
-    
-    const NUM_OUTCOMES: u8 = 36;
+
+    // constants (remove)
+    const NUM_OUTCOMES: u8 = 37;
+
+    // machine pattern
+    struct RouletteMachine has key {
+        /// The address of the linked house
+        house_address: address,
+        /// The address of the developer (for royalties)
+        developer_address: address,
+        /// The edge taken by the developer
+        developer_edge: u8,
+        /// The number of outcomes on the wheel
+        num_outcomes: u8,
+        /// The categories of bets
+        categories: vector<RouletteCategory>,
+    }
+
+    fun new_machine(house_address: address, developer_address: address, developer_edge: u8,
+                    num_outcomes: u8, category_values: &vector<vector<u8>>)
+    : RouletteMachine {
+        assert!(vector::length(category_values) > 0, EInvalidCategory);
+        /// use the new_category function to create a new category for each value in category_values
+        /// and store them in a vector use a for loop to iterate through category_values
+        let categories = vector::empty<RouletteCategory>();
+        let i = 0;
+        while(i < vector::length(category_values)) {
+            let category_values = vector::borrow(category_values, i);
+            assert!(vector::length(category_values) > 0, EInvalidCategory);
+            let category = new_category(
+                category_values,
+                (vector::length(category_values) as u8)
+            );
+            vector::push_back<RouletteCategory>(&mut categories, category);
+            i = i + 1;
+        };
+
+        RouletteMachine {
+            house_address,
+            developer_address,
+            developer_edge,
+            num_outcomes,
+            categories,
+        }
+    }
+
+    // category pattern
+    struct RouletteCategory has store {
+        /// The values of the category
+        values: vector<u8>,
+        /// The size of the category (aka 'Payout Numerator')
+        size: u8,
+    }
+
+    fun new_category(values: &vector<u8>, size: u8)
+    : RouletteCategory {
+        /// The values must be non-empty and have the same length as the size
+        assert!(vector::length(values) == (size as u64), EInvalidCategory);
+
+        /// The values must all be unique and <= size (this is a nice gurarantee to have)
+        let i = 0;
+        while(i < vector::length(values)) {
+            let j = i + 1;
+            while(j < vector::length(values)) {
+                assert!(vector::borrow<u8>(values, i) != vector::borrow<u8>(values, j), EInvalidCategory);
+                assert!(*vector::borrow(values, j) <= size, EInvalidCategory);
+                j = j + 1;
+            };
+            i = i + 1;
+        };
+
+        /// Dereference the values vector and create a new RouletteCategory
+        RouletteCategory {
+            values: *values,
+            size,
+        }
+    }
 
     // error codes
     
@@ -28,6 +101,8 @@ module aptosino::roulette {
     const ENumberOfPredictedOutcomesIsZero: u64 = 105;
     /// A predicted outcome is out of range
     const EPredictedOutcomeOutOfRange: u64 = 106;
+    /// Invalid category
+    const EInvalidCategory: u64 = 107;
 
     // events
 

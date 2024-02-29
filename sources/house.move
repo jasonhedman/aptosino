@@ -328,6 +328,7 @@ module aptosino::house {
     fun assert_bet_is_valid(house: &House, bet_amount: u64, multiplier_numerator: u64, multiplier_denominator: u64) {
         assert!(bet_amount >= house.min_bet, EBetLessThanMinBet);
         assert!(bet_amount <= house.max_bet, EBetExceedsMaxBet);
+        /// TODO: Remove this assertion - some payouts are less than the bet (in slots for example)
         assert!(multiplier_numerator > multiplier_denominator, EBetLessThanMinMultiplier);
         assert!(multiplier_numerator <= house.max_multiplier * multiplier_denominator, EBetExceedsMaxMultiplier);
     }
