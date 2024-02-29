@@ -278,6 +278,14 @@ module aptosino::house {
         coin::balance<AptosCoin>(get_house_address())
     }
     
+    #[view]
+    /// Returns the fee amount on a bet
+    /// * bet_amount: the amount of the bet
+    public fun get_fee_amount(bet_amount: u64): u64 acquires House {
+        let house = borrow_global<House>(get_house_address());
+        bet_amount * house.fee_bps / FEE_BPS_DIVISOR
+    }
+    
     // assertions
 
     /// Asserts that the signer is the deployer of the module

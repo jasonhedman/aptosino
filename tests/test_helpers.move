@@ -41,11 +41,31 @@ module aptosino::test_helpers {
             fee_bps
         );
     }
+
+    public fun setup_house_with_player(
+        framework: &signer,
+        aptosino: &signer,
+        player: &signer,
+        initial_deposit: u64,
+        min_bet: u64,
+        max_bet: u64,
+        max_multiplier: u64,
+        fee_bps: u64
+    ) {
+        setup_house(framework, aptosino, initial_deposit, min_bet, max_bet, max_multiplier, fee_bps);
+        account::create_account_for_test(signer::address_of(player));
+        coin::register<AptosCoin>(player);
+        aptos_coin::mint(framework, signer::address_of(player), max_bet + 1);
+    }
     
     public fun mint_coins(framework: &signer, amount: u64): Coin<AptosCoin> {
         account::create_account_for_test(signer::address_of(framework));
         coin::register<AptosCoin>(framework);
         aptos_coin::mint(framework, signer::address_of(framework), amount);
         coin::withdraw<AptosCoin>(framework, amount)
+    }
+    
+    public fun get_fee(amount: u64, fee_bps: u64, fee_denom: u64): u64 {
+        (amount * fee_bps) / fee_denom
     }
 }

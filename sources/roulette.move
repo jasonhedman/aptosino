@@ -22,10 +22,12 @@ module aptosino::roulette {
     const ENumberOfBetsDoesNotMatchNumberOfPredictedOutcomes: u64 = 102;
     /// The number of bets is zero
     const ENumberOfBetsIsZero: u64 = 103;
+    /// The bet amount is zero
+    const EBetAmountIsZero: u64 = 104;
     /// The number of predicted outcomes is zero for a bet
-    const ENumberOfPredictedOutcomesIsZero: u64 = 104;
+    const ENumberOfPredictedOutcomesIsZero: u64 = 105;
     /// A predicted outcome is out of range
-    const EPredictedOutcomeOutOfRange: u64 = 105;
+    const EPredictedOutcomeOutOfRange: u64 = 106;
 
     // events
 
@@ -97,6 +99,7 @@ module aptosino::roulette {
             };
             total_payout = total_payout + payout;
             house::release_bet_lock(bet_lock, payout);
+            i = i + 1;
         };
 
         event::emit(SpinWheelAddress {
@@ -106,6 +109,16 @@ module aptosino::roulette {
             result,
             payout: total_payout,
         });
+    }
+    
+    // getters
+    
+    #[view]
+    /// Returns the payout for a given bet
+    /// * bet_amount: the amount to bet
+    /// * predicted_outcome: the numbers the player predicts
+    public fun get_payout(bet_amount: u64, predicted_outcome: vector<u8>): u64 {
+        bet_amount * (NUM_OUTCOMES as u64) / vector::length(&predicted_outcome) - house::get_fee_amount(bet_amount)
     }
 
     // assert statements
@@ -125,6 +138,7 @@ module aptosino::roulette {
         assert!(vector::length(bet_amounts) == vector::length(predicted_outcomes), 
             ENumberOfBetsDoesNotMatchNumberOfPredictedOutcomes);
         assert!(vector::length(bet_amounts) > 0, ENumberOfBetsIsZero);
+        assert!(vector::all(bet_amounts, |amount| { *amount > 0 }), EBetAmountIsZero);
     }
     
     /// Asserts that a predicted outcome is valid

@@ -107,6 +107,8 @@ module aptosino::test_house {
         let new_fee_bps: u64 = 200;
         house::set_fee_bps(aptosino, new_fee_bps);
         assert!(house::get_fee_bps() == new_fee_bps, 0);
+        let bet_amount: u64 = 1_000_000;
+        assert!(house::get_fee_amount(bet_amount) == test_helpers::get_fee(bet_amount, new_fee_bps, FEE_DIVISOR), 0);
 
         let new_admin_address = @0x101;
         house::set_admin(aptosino, new_admin_address);
@@ -141,14 +143,12 @@ module aptosino::test_house {
         house::set_fee_bps(non_admin, 1);
     }
     
-    public fun get_fees(amount: u64): u64 { amount * FEE_BPS / FEE_DIVISOR }
-    
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     fun test_acquire_and_release_bet_lock_max_payout(framework: &signer, aptosino: &signer) {
         test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
         
         let bet_amount: u64 = 1_000_000;
-        let fee = get_fees(bet_amount);
+        let fee = test_helpers::get_fee(bet_amount, FEE_BPS, FEE_DIVISOR);
         let multiplier_numerator = 3;
         let multiplier_denominator = 2;
         
@@ -168,9 +168,8 @@ module aptosino::test_house {
         house::test_release_bet_lock(bet_lock, max_payout);
         
         assert!(house::get_house_balance() ==
-            INITIAL_DEPOSIT - bet_amount * multiplier_numerator / multiplier_denominator + fee + bet_amount, 0);
-        assert!(coin::balance<AptosCoin>(signer::address_of(aptosino)) == 
-            bet_amount * multiplier_numerator / multiplier_denominator - fee, 0);
+            INITIAL_DEPOSIT - max_payout + bet_amount, 0);
+        assert!(coin::balance<AptosCoin>(signer::address_of(aptosino)) == max_payout, 0);
     }
     
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
@@ -178,7 +177,6 @@ module aptosino::test_house {
         test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
 
         let bet_amount: u64 = 1_000_000;
-        let fee = get_fees(bet_amount);
         let multiplier_numerator = 3;
         let multiplier_denominator = 2;
 
@@ -196,9 +194,9 @@ module aptosino::test_house {
         house::test_release_bet_lock(bet_lock, payout);
 
         assert!(house::get_house_balance() == 
-            INITIAL_DEPOSIT - bet_amount * multiplier_numerator / multiplier_denominator + fee + payout_difference + bet_amount, 0);
+            INITIAL_DEPOSIT - max_payout + payout_difference + bet_amount, 0);
         assert!(coin::balance<AptosCoin>(signer::address_of(aptosino)) == 
-            bet_amount * multiplier_numerator / multiplier_denominator - fee - payout_difference, 0);
+            max_payout - payout_difference, 0);
     }
 
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
@@ -275,7 +273,7 @@ module aptosino::test_house {
 
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     #[expected_failure(abort_code= house::EBetLessThanMinMultiplier)]
-    fun test_roll_dice_multiplier_less_than_min_multiplier(framework: &signer, aptosino: &signer) {
+    fun test_bet_multiplier_less_than_min_multiplier(framework: &signer, aptosino: &signer) {
         test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
         let bet_amount: u64 = MIN_BET;
         let multiplier_numerator = 2;
@@ -312,7 +310,7 @@ module aptosino::test_house {
         test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
 
         let bet_amount: u64 = 1_000_000;
-        let fee = get_fees(bet_amount);
+        let fee = test_helpers::get_fee(bet_amount, FEE_BPS, FEE_DIVISOR);
         let multiplier_numerator = 3;
         let multiplier_denominator = 2;
 
