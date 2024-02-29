@@ -13,6 +13,18 @@ module aptosino::roulette {
     // constants (remove)
     const NUM_OUTCOMES: u8 = 37;
 
+    // bet pattern
+
+    struct RouletteBet has store {
+        /// The amount of the bet
+        amount: u64,
+        /// The numbers the player predicts
+        predicted_outcomes: vector<u8>,
+        /// Machine the bet is placed on
+        machine: RouletteMachine,
+    }
+
+
     // machine pattern
     struct RouletteMachine has key {
         /// The address of the linked house
@@ -27,6 +39,8 @@ module aptosino::roulette {
         categories: vector<RouletteCategory>,
     }
 
+    /// Verify on initialization that the categories are non-empty, and that the values in each category
+    /// are non-empty and unique and <= the size of the category
     fun new_machine(house_address: address, developer_address: address, developer_edge: u8,
                     num_outcomes: u8, category_values: &vector<vector<u8>>)
     : RouletteMachine {
@@ -111,7 +125,7 @@ module aptosino::roulette {
     struct SpinWheelEvent has drop, store {
         /// The address of the player
         player_address: address,
-        /// The amount of each bet
+        /// The amounts the player bets
         bet_amounts: vector<u64>,
         /// The numbers the player predicts for each bet
         predicted_outcomes: vector<vector<u8>>,
