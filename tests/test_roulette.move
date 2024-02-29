@@ -49,21 +49,19 @@ module aptosino::test_roulette {
             MAX_MULTIPLIER,
             FEE_BPS,
         );
+        let fee = test_helpers::get_fee(BET_AMOUNT, FEE_BPS, FEE_DIVISOR);
         
-        let num_slots_1: u8 = 18;
-        let predicted_outcome_1: vector<u8> = get_predicted_outcome(num_slots_1);
-        let payout = roulette::get_payout(BET_AMOUNT, predicted_outcome_1);
-        assert!(payout == BET_AMOUNT * 2 - test_helpers::get_fee(BET_AMOUNT, FEE_BPS, FEE_DIVISOR), 0);
+        let payout = roulette::get_payout(BET_AMOUNT, get_predicted_outcome(18));
+        assert!(payout == BET_AMOUNT * 2 - fee, 0);
         
-        let num_slots_2: u8 = 6;
-        let predicted_outcome_2: vector<u8> = get_predicted_outcome(num_slots_2);
-        let payout = roulette::get_payout(BET_AMOUNT, predicted_outcome_2);
-        assert!(payout == BET_AMOUNT * 6 - test_helpers::get_fee(BET_AMOUNT, FEE_BPS, FEE_DIVISOR), 0);
+        let payout = roulette::get_payout(BET_AMOUNT, get_predicted_outcome(6));
+        assert!(payout == BET_AMOUNT * 6 - fee, 0);
         
-        let num_slots_3: u8 = 1;
-        let predicted_outcome_3: vector<u8> = get_predicted_outcome(num_slots_3);
-        let payout = roulette::get_payout(BET_AMOUNT, predicted_outcome_3);
-        assert!(payout == BET_AMOUNT * 36 - test_helpers::get_fee(BET_AMOUNT, FEE_BPS, FEE_DIVISOR), 0);
+        let payout = roulette::get_payout(BET_AMOUNT, get_predicted_outcome(1));
+        assert!(payout == BET_AMOUNT * 36 - fee, 0);
+        
+        let payout = roulette::get_payout(BET_AMOUNT, get_predicted_outcome(37));
+        assert!(payout == 0, 0);
     }
     
     fun spin_test(

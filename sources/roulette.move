@@ -118,7 +118,11 @@ module aptosino::roulette {
     /// * bet_amount: the amount to bet
     /// * predicted_outcome: the numbers the player predicts
     public fun get_payout(bet_amount: u64, predicted_outcome: vector<u8>): u64 {
-        bet_amount * (NUM_OUTCOMES as u64) / vector::length(&predicted_outcome) - house::get_fee_amount(bet_amount)
+        if(vector::all(&predicted_outcome, |outcome| { *outcome < NUM_OUTCOMES })) {
+            bet_amount * (NUM_OUTCOMES as u64) / vector::length(&predicted_outcome) - house::get_fee_amount(bet_amount)
+        } else {
+            0
+        }
     }
 
     // assert statements
