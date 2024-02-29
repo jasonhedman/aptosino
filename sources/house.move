@@ -12,6 +12,7 @@ module aptosino::house {
     // TODO: This will be the base game module in the future
     
     friend aptosino::dice;
+    friend aptosino::roulette;
 
     // constants
 
@@ -106,17 +107,23 @@ module aptosino::house {
     /// Acquires a lock for the bettor to enforce betting rules
     /// * bettor: the address of the bettor
     /// * bet: the coins to bet
-    /// * max_multiplier: the maximum multiplier allowed
-    public(friend) fun acquire_bet_lock(bettor: address, bet: Coin<AptosCoin>, max_multiplier: u64): BetLock
+    /// * multiplier: the multiplier of the bet
+    /// * multiplier_denominator: the denominator of the multiplier
+    public(friend) fun acquire_bet_lock(
+        bettor: address, 
+        bet: Coin<AptosCoin>, 
+        multiplier_numerator: u64,
+        multiplier_denominator: u64
+    ): BetLock
     acquires House {
         let house = borrow_global_mut<House>(get_house_address());
         
         let bet_amount = coin::value(&bet);
 
-        assert_bet_is_valid(house, bet_amount, max_multiplier);
+        assert_bet_is_valid(house, bet_amount, multiplier_numerator, multiplier_denominator);
         
         coin::deposit(get_house_address(), bet);
-        assert_house_has_enough_balance(house, bet_amount, max_multiplier);
+        assert_house_has_enough_balance(house, bet_amount, multiplier_numerator, multiplier_denominator);
         
         let fee = bet_amount * house.fee_bps / FEE_BPS_DIVISOR;
         house.accrued_fees = house.accrued_fees + fee;
@@ -125,7 +132,7 @@ module aptosino::house {
             bettor,
             max_payout: coin::withdraw<AptosCoin>(
                 &account::create_signer_with_capability(&house.signer_cap), 
-                bet_amount * max_multiplier - fee
+                bet_amount * multiplier_numerator / multiplier_denominator - fee
             )
         }
     }
@@ -271,6 +278,14 @@ module aptosino::house {
         coin::balance<AptosCoin>(get_house_address())
     }
     
+    #[view]
+    /// Returns the fee amount on a bet
+    /// * bet_amount: the amount of the bet
+    public fun get_fee_amount(bet_amount: u64): u64 acquires House {
+        let house = borrow_global<House>(get_house_address());
+        bet_amount * house.fee_bps / FEE_BPS_DIVISOR
+    }
+    
     // assertions
 
     /// Asserts that the signer is the deployer of the module
@@ -293,9 +308,14 @@ module aptosino::house {
     /// Asserts that the house has enough balance to pay the player
     /// * bet_amount: the amount to bet
     /// * multiplier: the multiplier of the bet
-    fun assert_house_has_enough_balance(house: &House, bet_amount: u64, multiplier: u64) {
+    fun assert_house_has_enough_balance(
+        house: &House, bet_amount: u64, 
+        multiplier_numerator: u64, 
+        multiplier_denominator: u64
+    ) {
         assert!(
-            coin::balance<AptosCoin>(get_house_address()) - house.accrued_fees >= bet_amount * multiplier,
+            coin::balance<AptosCoin>(get_house_address())
+                - house.accrued_fees >= bet_amount * multiplier_numerator / multiplier_denominator,
             EHouseInsufficientBalance
         );
     }
@@ -304,12 +324,12 @@ module aptosino::house {
     /// * house: a reference to the house resource
     /// * bet_amount: the amount to bet
     /// * multiplier: the multiplier of the bet
-    /// * predicted_outcome: the number the player predicts
-    fun assert_bet_is_valid(house: &House, bet_amount: u64, multiplier: u64) {
+    /// * multiplier_denominator: the denominator of the multiplier
+    fun assert_bet_is_valid(house: &House, bet_amount: u64, multiplier_numerator: u64, multiplier_denominator: u64) {
         assert!(bet_amount >= house.min_bet, EBetLessThanMinBet);
         assert!(bet_amount <= house.max_bet, EBetExceedsMaxBet);
-        assert!(multiplier > 1, EBetLessThanMinMultiplier);
-        assert!(multiplier <= house.max_multiplier, EBetExceedsMaxMultiplier);
+        assert!(multiplier_numerator > multiplier_denominator, EBetLessThanMinMultiplier);
+        assert!(multiplier_numerator <= house.max_multiplier * multiplier_denominator, EBetExceedsMaxMultiplier);
     }
     
     /// Asserts that the payout is valid
@@ -322,9 +342,14 @@ module aptosino::house {
     // test functions
     
     #[test_only]
-    public fun test_acquire_bet_lock(bettor: address, bet: Coin<AptosCoin>, max_multiplier: u64): BetLock
+    public fun test_acquire_bet_lock(
+        bettor: address, 
+        bet: Coin<AptosCoin>,
+        multiplier_numerator: u64, 
+        multiplier_denominator: u64
+    ): BetLock
     acquires House {
-        acquire_bet_lock(bettor, bet, max_multiplier)
+        acquire_bet_lock(bettor, bet, multiplier_numerator, multiplier_denominator)
     }
     
     #[test_only]

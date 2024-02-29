@@ -73,7 +73,8 @@ module aptosino::dice {
         let bet_lock = house::acquire_bet_lock(
             player_address, 
             coin::withdraw<AptosCoin>(player, bet_amount),
-            multiplier
+            multiplier,
+            1
         );
         
         let payout = if (result == predicted_outcome) {
@@ -113,7 +114,7 @@ module aptosino::dice {
     // test functions
     
     #[test_only]
-    public fun test_spin_wheel(
+    public fun test_roll_dice(
         player: &signer, 
         bet_amount: u64,
         multiplier: u64,
