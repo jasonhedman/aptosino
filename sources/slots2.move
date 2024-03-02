@@ -10,5 +10,4 @@
 /// In a roulette game, we can treat these sub-bets as individual bets and verify that each is EV 0.
 /// In a slot game, the EV of a sub-bet can be positive or negative so long as the EV of a bet,
 /// which is the sum of the EVs of its sub-bets, equals 0. (We want the overall multiplier to be 1 for simplicity.)
-/// A "bet" is a vector of sub-bets (defining the structure + payout table of the game). The EV of a bet is the sum of the EVs
-/// of its sub-bets.
+/// A bet is a vector of sub-bets.
