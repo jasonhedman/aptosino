@@ -42,13 +42,6 @@ module aptosino::roulette {
 
     // events
 
-    struct MinesMachine has drop {
-        revealed: vector<vector<u8>>,
-        rows: u8,
-        cols: u8,
-        mines: u8,
-    }
-
     #[event]
     /// Event emitted when the player plays the game
     struct CellSelected has drop, store {
@@ -64,12 +57,24 @@ module aptosino::roulette {
         payout_ratio: vector<u8>,
     }
 
+    /// Structure representing the mines machine for verification
+    struct MinesMachine has drop {
+        revealed: vector<vector<u8>>,
+        rows: u8,
+        cols: u8,
+        mines: u8,
+    }
+
     // game functions
 
-    /// Spins the wheel and pays out the player
+    /// Creates and verifies the mines machine and pays out the player accordingly
     /// * player: the signer of the player account
-    /// * bet_amount_inputs: the amount to bet on each predicted outcome
-    /// * predicted_outcomes: the numbers the player predicts for each corresponding bet
+    /// * bet_amount: the amount to bet
+    /// * rows: the number of rows in the mines machine
+    /// * cols: the number of columns in the mines machine
+    /// * mines: the number of mines in the mines machine
+    /// * revealed: the coordinates of the revealed cells
+    /// * predicted_coordinates: the coordinates of the cell to select
     public entry fun select_cell(
         player: &signer,
         bet_amount: u64,
@@ -91,11 +96,11 @@ module aptosino::roulette {
         select_cell_impl(player, bet_amount, predicted_coordinates, &mines_machine);
     }
 
-    /// Implementation of the spin_wheel function, extracted to allow testing
+    /// Selects a cell in the mines machine
     /// * player: the signer of the player account
-    /// * bet_amounts: the amount to bet on each predicted outcome
-    /// * predicted_outcomes: the numbers the player predicts for each corresponding bet
-    /// * result: the result of the spin
+    /// * bet_amount: the amount to bet
+    /// * predicted_coordinates: the coordinates of the cell to select
+    /// * mines_machine: the mines machine
     fun select_cell_impl(
         player: &signer,
         bet_amount: u64,
@@ -107,8 +112,9 @@ module aptosino::roulette {
 
         assert_bet_is_valid(bet_amount);
 
-        /// Implement the game logic here
+        /// The user wins if the cell is not a mine, or if the condition is not met
         let explode_flag = false;
+
         let num_mines = mines_machine.mines;
         let i = 0;
         let mines = vector::empty<vector<u8>>();
@@ -120,21 +126,21 @@ module aptosino::roulette {
             let mine_col = randomness::u8_range(0, mines_machine.cols);
             vector::push_back<u8>(mine, mine_col);
 
-            /// Ensure that the mine is unique, iterate until a unique mine is found
-            if (!vector::contains<vector<u8>>(mines, mine)) {
+            /// Ensure that the mine is unique and valid
+            if (!vector::contains<vector<u8>>(mines, mine) && !vector::contains<vector<u8>>(mines_machine.revealed, mine)) {
                 vector::push_back<vector<u8>>(mines, mine);
                 i = i + 1;
             };
 
-            /// The user busts
+            /// Check if user has busted
             if (vector::contains<vector<u8>>(predicted_coordinates, mine)) {
                 explode_flag = true;
                 break;
             };
         };
 
-        let payout_ratio: vector<u8> = get_payout(bet_amount, MinesMachine, explode_flag);
-        // If the
+        let payout_ratio: vector<u8> = get_payout(bet_amount, MinesMachine);
+        // If the player has busted, the payout ratio is 0
         if (explode_flag) {
             vector::borrow_mut(payout_ratio, 0) = 0;
         };
@@ -154,10 +160,15 @@ module aptosino::roulette {
 
     #[view]
     /// Returns the payout for a given bet
-    public fun get_payout(bet_amount: u64, mines_machine: &MinesMachine, explode_flag: bool): vector<u8> {
+    /// * bet_amount: the amount to bet
+    /// * rows: the number of rows in the mines machine
+    /// * cols: the number of columns in the mines machine
+    /// * mines: the number of mines in the mines machine
+    /// * revealed: the coordinates of the revealed cells
+    public fun get_payout(bet_amount: u64, rows: u8, cols: u8, mines: u8, revealed: vector<vector<u8>>):
+    vector<u8> {
         /// The number of remaining cells is the total number of cells minus the number of revealed cells
-        let num_remaining_cells = mines_machine.rows * mines_machine.cols -
-            vector::length<vector<u64>>(mines_machine.revealed);
+        let num_remaining_cells = rows * cols - vector::length<vector<u8>>(revealed);
         /// The multiplier numerator is the number of remaining cells that can be selected
         let multiplier_numerator = num_remaining_cells;
         /// The multiplier denominator is the number of cells that are not mines
@@ -168,13 +179,14 @@ module aptosino::roulette {
     // assert statements
 
     /// Asserts that the player has enough balance to bet the given amount
-    /// * player: the signer of the player account
+    /// * player_address: the address of the player account
     /// * amount: the amount to bet
     fun assert_player_has_enough_balance(player_address: address, amount: u64) {
         assert!(coin::balance<AptosCoin>(player_address) >= amount, EPlayerInsufficientBalance);
     }
 
     /// Asserts that the mines machine is valid
+    /// * mines_machine: the mines machine
     fun assert_mines_machine_valid(mines_machine: &MinesMachine) {
         assert!(mines_machine.rows > 0 && mines_machine.rows < MAX_ROWS, EMinesMachineInvalidRows);
         assert!(mines_machine.cols > 0 && mines_machine.cols < MAX_COLS, EMinesMachineInvalidCols);
@@ -183,16 +195,15 @@ module aptosino::roulette {
             (mines_machine.rows * mines_machine.cols - vector::length<vector<u8>>(mines_machine.revealed)), EMinesMachineInvalidMines);
     }
 
-    /// Asserts that the number of bets and predicted outcomes are equal in length, non-empty, and non-zero
-    /// * multiplier: the multiplier of the bet
-    /// * bet_amounts: the amounts the player bets
-    /// * predicted_outcome: the numbers the player predicts for each bet
+
+    /// Asserts that the bet is non-zero
     fun assert_bet_is_valid(bet: u64) {
         assert!(bet > 0, EBetAmountIsZero);
     }
 
     /// Asserts that each outcome in a vector of predicted outcomes is within the range of possible outcomes
-    /// * predicted_outcome: the cell the player predicts
+    /// * predicted_outcomes: vector representing chosen coordinates
+    /// * revealed: vector representing revealed coordinates
     fun assert_predicted_outcome_is_valid(predicted_outcome: &vector<u64>, revealed: &vector<vector<u64>>) {
         assert!(vector::borrow(predicted_outcome, 0) >= 0, EPredictedOutcomeOutOfRange);
         assert!(vector::borrow(predicted_outcome, 0) < MAX_ROWS, EPredictedOutcomeOutOfRange);
