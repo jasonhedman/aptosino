@@ -1,4 +1,4 @@
-module aptosino::roulette {
+module aptosino::slots {
 
     use std::signer;
     use std::vector;
@@ -117,9 +117,9 @@ module aptosino::roulette {
 
         let num_mines = mines_machine.mines;
         let i = 0;
-        let mines = vector::empty<vector<u8>>();
+        let mines = &mut vector::empty<vector<u8>>();
         while (i < num_mines) {
-            let mine = vector::empty<u8>();
+            let mine = &mut vector::empty<u8>();
 
             let mine_row = randomness::u8_range(0, mines_machine.rows);
             vector::push_back<u8>(mine, mine_row);
@@ -127,22 +127,23 @@ module aptosino::roulette {
             vector::push_back<u8>(mine, mine_col);
 
             /// Ensure that the mine is unique and valid
-            if (!vector::contains<vector<u8>>(mines, mine) && !vector::contains<vector<u8>>(mines_machine.revealed, mine)) {
-                vector::push_back<vector<u8>>(mines, mine);
+            if (!vector::contains<vector<u8>>(mines, mine) && !vector::contains<vector<u8>>(&mines_machine.revealed, mine)) {
+                vector::push_back<vector<u8>>(mines, *mine);
                 i = i + 1;
             };
 
             /// Check if user has busted
-            if (vector::contains<vector<u8>>(predicted_coordinates, mine)) {
+            if (vector::contains<vector<u8>>(mines, &predicted_coordinates)) {
                 explode_flag = true;
-                break;
             };
         };
 
-        let payout_ratio: vector<u8> = get_payout(bet_amount, MinesMachine);
+        let payout_ratio: vector<u8>;
         // If the player has busted, the payout ratio is 0
         if (explode_flag) {
-            vector::borrow_mut(payout_ratio, 0) = 0;
+            payout_ratio = vector<u8>[0, 1];
+        } else {
+            payout_ratio = get_payout_multiplier(mines_machine.rows, mines_machine.cols, mines_machine.mines, &mines_machine.revealed);
         };
 
         event::emit<CellSelected>(
@@ -159,20 +160,20 @@ module aptosino::roulette {
     // getters
 
     #[view]
-    /// Returns the payout for a given bet
+    /// Returns the payout multiplier for a given bet
     /// * bet_amount: the amount to bet
     /// * rows: the number of rows in the mines machine
     /// * cols: the number of columns in the mines machine
     /// * mines: the number of mines in the mines machine
     /// * revealed: the coordinates of the revealed cells
-    public fun get_payout(bet_amount: u64, rows: u8, cols: u8, mines: u8, revealed: vector<vector<u8>>):
+    public fun get_payout_multiplier(rows: u8, cols: u8, mines: u8, revealed: &vector<vector<u8>>):
     vector<u8> {
         /// The number of remaining cells is the total number of cells minus the number of revealed cells
-        let num_remaining_cells = rows * cols - vector::length<vector<u8>>(revealed);
+        let num_remaining_cells = rows * cols - (vector::length<vector<u8>>(revealed) as u8);
         /// The multiplier numerator is the number of remaining cells that can be selected
         let multiplier_numerator = num_remaining_cells;
         /// The multiplier denominator is the number of cells that are not mines
-        let multiplier_denominator = num_remaining_cells - mines_machine.mines;
+        let multiplier_denominator = num_remaining_cells - mines;
         vector<u8>[multiplier_numerator, multiplier_denominator]
     }
 
@@ -192,7 +193,7 @@ module aptosino::roulette {
         assert!(mines_machine.cols > 0 && mines_machine.cols < MAX_COLS, EMinesMachineInvalidCols);
         /// Number of mines is less than the number of remaining cells
         assert!(mines_machine.mines > 0 && mines_machine.mines <
-            (mines_machine.rows * mines_machine.cols - vector::length<vector<u8>>(mines_machine.revealed)), EMinesMachineInvalidMines);
+            (mines_machine.rows * mines_machine.cols - (vector::length<vector<u8>>(&mines_machine.revealed) as u8)), EMinesMachineInvalidMines);
     }
 
 
@@ -204,22 +205,30 @@ module aptosino::roulette {
     /// Asserts that each outcome in a vector of predicted outcomes is within the range of possible outcomes
     /// * predicted_outcomes: vector representing chosen coordinates
     /// * revealed: vector representing revealed coordinates
-    fun assert_predicted_outcome_is_valid(predicted_outcome: &vector<u64>, revealed: &vector<vector<u64>>) {
-        assert!(vector::borrow(predicted_outcome, 0) >= 0, EPredictedOutcomeOutOfRange);
-        assert!(vector::borrow(predicted_outcome, 0) < MAX_ROWS, EPredictedOutcomeOutOfRange);
-        assert!(vector::borrow(predicted_outcome, 1) >= 0, EPredictedOutcomeOutOfRange);
-        assert!(vector::borrow(predicted_outcome, 1) < MAX_COLS, EPredictedOutcomeOutOfRange);
-        assert!(!vector::contains<vector<u64>>(revealed, predicted_outcome), ECellIsRevealed);
+    fun assert_predicted_outcome_is_valid(predicted_outcome: &vector<u8>, revealed: &vector<vector<u8>>) {
+        assert!(*vector::borrow(predicted_outcome, 0) >= 0, EPredictedOutcomeOutOfRange);
+        assert!(*vector::borrow(predicted_outcome, 0) < MAX_ROWS, EPredictedOutcomeOutOfRange);
+        assert!(*vector::borrow(predicted_outcome, 1) >= 0, EPredictedOutcomeOutOfRange);
+        assert!(*vector::borrow(predicted_outcome, 1) < MAX_COLS, EPredictedOutcomeOutOfRange);
+        assert!(!vector::contains<vector<u8>>(revealed, predicted_outcome), ECellIsRevealed);
     }
     // test functions
 
     #[test_only]
-    public fun test_spin_wheel(
+    public fun test_select_cell(
         player: &signer,
-        bet_amounts: vector<u64>,
-        predicted_outcomes: vector<vector<u8>>,
-        result: u8
+        bet_amount: u64,
+        rows: u8,
+        cols: u8,
+        mines: u8,
+        revealed: vector<vector<u8>>,
+        predicted_coordinates: vector<u8>,
     ) {
-        spin_wheel_impl(player, bet_amounts, predicted_outcomes, result);
+        select_cell_impl(player, bet_amount, predicted_coordinates, &MinesMachine {
+            revealed,
+            rows,
+            cols,
+            mines,
+        });
     }
 }
