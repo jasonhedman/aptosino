@@ -108,7 +108,6 @@ module aptosino::slots {
         slot_machine: SlotMachine,
     ) {
         /// convert the frequency of each symbol to actual occurrences in a vector
-
     }
 
 
