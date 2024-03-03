@@ -11,8 +11,7 @@ module aptosino::house {
     
     // TODO: This will be the base game module in the future
     
-    friend aptosino::dice;
-    friend aptosino::roulette;
+    friend aptosino::game;
 
     // constants
 
@@ -29,18 +28,22 @@ module aptosino::house {
     const ESignerNotAdmin: u64 = 102;
     /// The signer does not have sufficient balance to deposit the amount
     const EAdminInsufficientBalance: u64 = 103;
+    /// The game is not approved by the house
+    const EGameNotApproved: u64 = 104;
+    /// The game is already approved by the house
+    const EGameAlreadyApproved: u64 = 105;
     /// The house does not have enough balance to pay the player
-    const EHouseInsufficientBalance: u64 = 104;
+    const EHouseInsufficientBalance: u64 = 106;
     /// The bet amount is less than the minimum bet allowed
-    const EBetLessThanMinBet: u64 = 105;
+    const EBetLessThanMinBet: u64 = 107;
     /// The bet amount exceeds the maximum bet allowed
-    const EBetExceedsMaxBet: u64 = 106;
+    const EBetExceedsMaxBet: u64 = 108;
     /// The bet multiplier is less than the minimum multiplier allowed
-    const EBetLessThanMinMultiplier: u64 = 107;
+    const EBetLessThanMinMultiplier: u64 = 109;
     /// The bet multiplier exceeds the maximum multiplier allowed
-    const EBetExceedsMaxMultiplier: u64 = 108;
+    const EBetExceedsMaxMultiplier: u64 = 110;
     /// The payout exceeds the maximum payout
-    const EPayoutExceedsMaxPayout: u64 = 109;
+    const EPayoutExceedsMaxPayout: u64 = 111;
 
     /// Data stored on the house resource account
     struct House has key {
@@ -60,8 +63,11 @@ module aptosino::house {
         accrued_fees: u64,
     }
     
+    /// A game approved by the house
+    struct ApprovedGame<phantom GameType: drop> has key {}
+    
     /// lock for enforcing betting rules
-    struct BetLock {
+    struct BetLock<phantom GameType> {
         /// The address of the bettor
         bettor: address,
         /// The maximum amount of coins the bettor can win
@@ -82,7 +88,8 @@ module aptosino::house {
         max_bet: u64,
         max_multiplier: u64,
         fee_bps: u64
-    ) acquires House {
+    ) 
+    acquires House {
         assert_signer_is_deployer(deployer);
 
         let (resourse_acc, signer_cap) = account::create_resource_account(deployer, ACCOUNT_SEED);
@@ -109,13 +116,16 @@ module aptosino::house {
     /// * bet: the coins to bet
     /// * multiplier: the multiplier of the bet
     /// * multiplier_denominator: the denominator of the multiplier
-    public(friend) fun acquire_bet_lock(
+    public(friend) fun acquire_bet_lock<GameType: drop>(
         bettor: address, 
         bet: Coin<AptosCoin>, 
         multiplier_numerator: u64,
-        multiplier_denominator: u64
-    ): BetLock
+        multiplier_denominator: u64,
+        _witness: GameType
+    ): BetLock<GameType>
     acquires House {
+        assert_game_is_approved<GameType>();
+        
         let house = borrow_global_mut<House>(get_house_address());
         
         let bet_amount = coin::value(&bet);
@@ -140,7 +150,7 @@ module aptosino::house {
     /// Releases the lock for the bettor and pays out the winnings
     /// * bet_lock: the bet lock
     /// * payout: the payout amount
-    public(friend) fun release_bet_lock(bet_lock: BetLock, payout: u64) {
+    public(friend) fun release_bet_lock<GameType>(bet_lock: BetLock<GameType>, payout: u64) {
         assert_payout_is_valid(&bet_lock, payout);
         let BetLock {
             bettor,
@@ -155,6 +165,24 @@ module aptosino::house {
     }
 
     // admin functions
+
+    /// Approves a game to access the house
+    /// * signer: the signer of the admin account
+    /// * _witness: an instance of the GameType struct, enforces that the call is made from the correct game module
+    public(friend) fun approve_game<GameType: drop>(signer: &signer, _witness: GameType) acquires House {
+        assert_signer_is_admin(signer);
+        assert_game_is_not_approved<GameType>();
+        let house = borrow_global<House>(get_house_address());
+        move_to(&account::create_signer_with_capability(&house.signer_cap), ApprovedGame<GameType> {});
+    }
+    
+    /// Revokes the approval of a game
+    /// * signer: the signer of the admin account
+    public entry fun revoke_game<GameType: drop>(signer: &signer) acquires House, ApprovedGame {
+        assert_signer_is_admin(signer);
+        assert_game_is_approved<GameType>();
+        let ApprovedGame<GameType> {} = move_from<ApprovedGame<GameType>>(get_house_address());
+    }
 
     /// Withdraws the accrued fees from the house resource account
     /// * signer: the signer of the admin account
@@ -224,7 +252,7 @@ module aptosino::house {
     
     /// Gets the max payout from a bet lock
     /// * bet_lock: the bet lock
-    public fun get_max_payout(bet_lock: &BetLock): u64 {
+    public fun get_max_payout<GameType>(bet_lock: &BetLock<GameType>): u64 {
         coin::value(&bet_lock.max_payout)
     }
     
@@ -286,6 +314,12 @@ module aptosino::house {
         bet_amount * house.fee_bps / FEE_BPS_DIVISOR
     }
     
+    #[view]
+    /// Returns whether or not a game is approved by the house
+    public fun is_game_approved<GameType: drop>(): bool {
+        exists<ApprovedGame<GameType>>(get_house_address())
+    }
+    
     // assertions
 
     /// Asserts that the signer is the deployer of the module
@@ -303,6 +337,16 @@ module aptosino::house {
     /// * amount: the amount to deposit
     fun assert_admin_has_enough_balance(admin_address: address, amount: u64) {
         assert!(coin::balance<AptosCoin>(admin_address) >= amount, EAdminInsufficientBalance);
+    }
+    
+    /// Asserts that the game is approved by the house
+    fun assert_game_is_approved<GameType: drop>() {
+        assert!(is_game_approved<GameType>(), EGameNotApproved);
+    }
+    
+    /// Asserts that the game is not approved by the house
+    fun assert_game_is_not_approved<GameType: drop>() {
+        assert!(!is_game_approved<GameType>(), EGameAlreadyApproved);
     }
 
     /// Asserts that the house has enough balance to pay the player
@@ -335,25 +379,31 @@ module aptosino::house {
     /// Asserts that the payout is valid
     /// bet_lock: the bet lock
     /// payout: the payout
-    fun assert_payout_is_valid(bet_lock: &BetLock, payout: u64) {
+    fun assert_payout_is_valid<GameType>(bet_lock: &BetLock<GameType>, payout: u64) {
         assert!(payout <= get_max_payout(bet_lock), EPayoutExceedsMaxPayout);
     }
     
     // test functions
     
     #[test_only]
-    public fun test_acquire_bet_lock(
-        bettor: address, 
-        bet: Coin<AptosCoin>,
-        multiplier_numerator: u64, 
-        multiplier_denominator: u64
-    ): BetLock
-    acquires House {
-        acquire_bet_lock(bettor, bet, multiplier_numerator, multiplier_denominator)
+    public fun test_approve_game<GameType: drop>(signer: &signer, _witness: GameType) acquires House {
+        approve_game(signer, _witness);
     }
     
     #[test_only]
-    public fun test_release_bet_lock(bet_lock: BetLock, payout: u64) {
+    public fun test_acquire_bet_lock<GameType: drop>(
+        bettor: address, 
+        bet: Coin<AptosCoin>,
+        multiplier_numerator: u64, 
+        multiplier_denominator: u64,
+        witness: GameType
+    ): BetLock<GameType>
+    acquires House {
+        acquire_bet_lock(bettor, bet, multiplier_numerator, multiplier_denominator, witness)
+    }
+    
+    #[test_only]
+    public fun test_release_bet_lock<GameType: drop>(bet_lock: BetLock<GameType>, payout: u64) {
         release_bet_lock(bet_lock, payout);
     }
 }

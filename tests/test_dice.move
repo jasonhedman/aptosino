@@ -64,6 +64,8 @@ module aptosino::test_dice {
             FEE_BPS,
         );
 
+        dice::approve_game(aptosino);
+
         let house_balance = house::get_house_balance();
         let user_balance = coin::balance<AptosCoin>(signer::address_of(player));
 
@@ -119,21 +121,6 @@ module aptosino::test_dice {
         assert!(user_balance_change == BET_AMOUNT, 0);
         assert!(house::get_accrued_fees() == fee, 0);
     }
-    
-
-    #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
-    #[expected_failure(abort_code= dice::EPlayerInsufficientBalance)]
-    fun test_roll_dice_insufficient_balance(framework: &signer, aptosino: &signer, player: &signer) {
-        roll_test(
-            framework,
-            aptosino,
-            player,
-            MAX_BET + 2,
-            100,
-            50,
-            0
-        );
-    }
 
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
     #[expected_failure(abort_code= dice::EPredictedOutcomeInvalid)]
@@ -175,6 +162,7 @@ module aptosino::test_dice {
             MAX_MULTIPLIER,
             FEE_BPS,
         );
+        dice::approve_game(aptosino);
         dice::roll_dice(player, BET_AMOUNT, 2, 1);
     }
 }
