@@ -163,10 +163,10 @@ module aptosino::poker {
                 /// Straight flush
                 if (flush) {
                     vector::push_back<u64>(hands, 8);
-                };
-                /// Royal flush
-                if (get_highest_rank(ranks_found) == 14) {
-                    vector::push_back<u64>(hands, 9);
+                    /// Royal flush
+                    if (get_highest_rank(ranks_found) == 14 ) {
+                        vector::push_back<u64>(hands, 9);
+                    };
                 };
             };
         };
