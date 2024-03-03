@@ -1,6 +1,6 @@
 /// https://math.hawaii.edu/~ramsey/Probability/PokerHands.html
 /// Allow people to bet on the above categories in a 5 card hand of poker.
-/// Kind of an abstraction of roulette.
+/// Kind of a specification of roulette.
 /// Number of possible hands: 2,598,960
 /// Intuitively exclusive categories (i.e. a hand can't be both a single pair and a triple)
 /// Single Pair: 1098240
