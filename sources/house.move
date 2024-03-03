@@ -105,6 +105,37 @@ module aptosino::house {
     
     // betting functions
     
+    public fun pay_out<GameType: drop>(
+        bettor: address,
+        bet: Coin<AptosCoin>,
+        multiplier_numerator: u64,
+        multiplier_denominator: u64,
+        is_win: bool,
+        _witness: GameType
+    )
+    acquires House {
+        assert_game_is_approved<GameType>();
+        
+        let house = borrow_global_mut<House>(get_house_address());
+        
+        let bet_amount = coin::value(&bet);
+        assert_bet_is_valid(house, bet_amount, multiplier_numerator, multiplier_denominator);
+        
+        coin::deposit(get_house_address(), bet);
+        assert_house_has_enough_balance(house, bet_amount, multiplier_numerator, multiplier_denominator);
+        
+        let fee = bet_amount * house.fee_bps / FEE_BPS_DIVISOR;
+        house.accrued_fees = house.accrued_fees + fee;
+        
+        if(is_win) {
+            let payout = bet_amount * multiplier_numerator / multiplier_denominator - fee;
+            coin::deposit(
+                bettor, 
+                coin::withdraw<AptosCoin>(&account::create_signer_with_capability(&house.signer_cap), payout)
+            );
+        }
+    }
+    
     /// Acquires a lock for the bettor to enforce betting rules
     /// * bettor: the address of the bettor
     /// * bet: the coins to bet
@@ -118,7 +149,7 @@ module aptosino::house {
         _witness: GameType
     ): BetLock<GameType>
     acquires House {
-        assert_game_is_approved<GameType>();
+        
         
         let house = borrow_global_mut<House>(get_house_address());
         
