@@ -29,11 +29,17 @@ module aptosino::blackjack {
     
     // structs
     
+    /// A blackjack hand
     struct BlackjackHand has key {
+        /// The address of the player
         player_address: address,
+        /// The player's cards
         player_cards: vector<vector<u8>>,
+        /// The dealer's cards
         dealer_cards: vector<vector<u8>>,
+        /// The delete reference for after the game is resolved
         delete_ref: DeleteRef,
+        /// The coins bet on the hand
         bet: Coin<AptosCoin>
     }
     
@@ -82,10 +88,15 @@ module aptosino::blackjack {
     
     // admin functions
     
+    /// Approves the game to use the house
+    /// * admin: the admin signer
     public entry fun approve_game(admin: &signer) {
         house::approve_game(admin, BlackjackGame {})
     }
     
+    /// Creates an instance of a blackjack hand
+    /// * player: the player signer
+    /// * bet_amount: the amount to bet
     public entry fun start_game(player: &signer, bet_amount: u64) {
         let player_address = signer::address_of(player);
         assert_player_has_enough_balance(player_address, bet_amount);
@@ -112,6 +123,9 @@ module aptosino::blackjack {
         });
     }
     
+    /// Hits the player's hand
+    /// * player: the player signer
+    /// * blackjack_hand_obj: the blackjack hand object
     public entry fun hit(player: &signer, blackjack_hand_obj: Object<BlackjackHand>) acquires BlackjackHand {
         let hand_address = object::object_address(&blackjack_hand_obj);
         let blackjack_hand = borrow_global_mut<BlackjackHand>(hand_address);
@@ -128,12 +142,19 @@ module aptosino::blackjack {
         };
     }
     
+    /// Stands the player's hand
+    /// * player: the player signer
+    /// * blackjack_hand_obj: the blackjack hand object
     public entry fun stand(player: &signer, blackjack_hand_obj: Object<BlackjackHand>) acquires BlackjackHand {
         let blackjack_hand = borrow_global<BlackjackHand>(object::object_address(&blackjack_hand_obj));
         assert_signer_is_player(player, blackjack_hand);
         resolve_game(blackjack_hand_obj);
     }
     
+    // private implementation functions
+    
+    /// Resolves the hand
+    /// * blackjack_hand_obj: the blackjack hand object
     fun resolve_game(blackjack_hand_obj: Object<BlackjackHand>) acquires BlackjackHand {
         let hand_address = object::object_address(&blackjack_hand_obj);
         let BlackjackHand {
@@ -181,12 +202,15 @@ module aptosino::blackjack {
     
     // internal functions
     
+    /// Deals a random card with random value and suit
     fun deal_card(): vector<u8> {
         let value = (randomness::u8_range(0, NUM_CARD_VALUES));
         let suit = (randomness::u8_range(0, NUM_CARD_SUITS));
         vector[value, suit]
     }
     
+    /// Calculates the value of a vector of cards
+    /// * cards: the cards to calculate the value of
     fun calculate_hand_value(cards: vector<vector<u8>>): u8 {
         if(vector::any(&cards, |card| *vector::borrow(card, 0) == 0)) {
             calculate_hand_value_with_ace(cards)
@@ -195,6 +219,7 @@ module aptosino::blackjack {
         }
     }
     
+    /// Calculates the value of a hand with no aces
     fun calculate_hand_value_no_ace(cards: vector<vector<u8>>): u8 {
         let value = 0;
         vector::for_each(cards, |card| {
@@ -208,6 +233,8 @@ module aptosino::blackjack {
         value
     }
     
+    /// Calculates the value of a hand with aces; returns the ace-1 value if the ace-11 value is over 21
+    /// * cards: the cards to calculate the value of
     fun calculate_hand_value_with_ace(cards: vector<vector<u8>>): u8 {
         let value_1 = 0;
         let value_2 = 0;
