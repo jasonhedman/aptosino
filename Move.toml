@@ -5,5 +5,7 @@ version = '1.0.0'
 [addresses]
 aptosino = "a3883496c894715e7d4efc28a32b123390bbe63137c5fa460529e79c1d7d8e68"
 
-[dependencies]
-AptosFramework = { local = "../../../aptos-core/aptos-move/framework/aptos-framework" }
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-core.git"
+rev = "randomnet"
+subdir = "aptos-move/framework/aptos-framework"

@@ -82,6 +82,8 @@ module aptosino::test_roulette {
             MAX_MULTIPLIER,
             FEE_BPS,
         );
+        
+        roulette::approve_game(aptosino);
 
         let house_balance = house::get_house_balance();
         let user_balance = coin::balance<AptosCoin>(signer::address_of(player));
@@ -153,20 +155,6 @@ module aptosino::test_roulette {
         assert!(house_balance_change == payout_2 - total_bet_amount, 0);
         assert!(user_balance_change == payout_2 - total_bet_amount, 0);
         assert!(house::get_accrued_fees() == house::get_fee_amount(total_bet_amount), 0);
-        
-    }
-
-    #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
-    #[expected_failure(abort_code= roulette::EPlayerInsufficientBalance)]
-    fun test_spin_wheel_insufficient_balance(framework: &signer, aptosino: &signer, player: &signer) {
-        spin_test(
-            framework,
-            aptosino,
-            player,
-            vector[MAX_BET, MAX_BET],
-            get_predicted_outcomes(vector[6, 2]),
-            0
-        );
     }
     
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
@@ -246,6 +234,7 @@ module aptosino::test_roulette {
             MAX_MULTIPLIER,
             FEE_BPS,
         );
+        roulette::approve_game(aptosino);
         
         let bet_amounts: vector<u64> = vector[BET_AMOUNT];
         

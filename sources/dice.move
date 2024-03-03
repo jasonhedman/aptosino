@@ -2,19 +2,20 @@ module aptosino::dice {
     
     use std::signer;
     
-    use aptos_framework::aptos_coin::AptosCoin;
-    use aptos_framework::coin;
     use aptos_framework::event;
     use aptos_framework::randomness;
-    
+
     use aptosino::house;
+    use aptosino::game;
 
     // error codes
     
-    /// Player does not have enough balance to bet
-    const EPlayerInsufficientBalance: u64 = 101;
     /// The predicted outcome is 0 or greater than or equal to the maximum outcome
-    const EPredictedOutcomeInvalid: u64 = 102;
+    const EPredictedOutcomeInvalid: u64 = 101;
+    
+    // game type
+    
+    struct DiceGame has drop {}
     
     // events
     
@@ -33,6 +34,14 @@ module aptosino::dice {
         result: u64,
         /// The payout to the player
         payout: u64,
+    }
+    
+    // admin functions
+    
+    /// Approves the dice game on the house module
+    /// * admin: the signer of the admin account
+    public entry fun approve_game(admin: &signer) {
+        game::approve_game<DiceGame>(admin, DiceGame{});
     }
     
     // game functions
@@ -65,16 +74,14 @@ module aptosino::dice {
         predicted_outcome: u64,
         result: u64
     ) {
-        let player_address = signer::address_of(player);
-        assert_player_has_enough_balance(player_address, bet_amount);
-
         assert_bet_is_valid(max_outcome, predicted_outcome);
         
-        let bet_lock = house::acquire_bet_lock(
-            player_address, 
-            coin::withdraw<AptosCoin>(player, bet_amount),
+        let bet_lock = game::acquire_bet_lock(
+            player, 
+            bet_amount,
             max_outcome,
-            predicted_outcome
+            predicted_outcome,
+            DiceGame {}
         );
         
         let payout = if (result < predicted_outcome) {
@@ -82,11 +89,11 @@ module aptosino::dice {
         } else {
             0
         };
-        
-        house::release_bet_lock(bet_lock, payout);
+
+        game::release_bet_lock(bet_lock, payout);
         
         event::emit(RollDiceEvent {
-            player_address,
+            player_address: signer::address_of(player),
             bet_amount,
             max_outcome,
             predicted_outcome,
@@ -111,13 +118,6 @@ module aptosino::dice {
     }
     
     // assert statements
-    
-    /// Asserts that the player has enough balance to bet the given amount
-    /// * player: the signer of the player account
-    /// * amount: the amount to bet
-    fun assert_player_has_enough_balance(player_address: address, amount: u64) {
-        assert!(coin::balance<AptosCoin>(player_address) >= amount, EPlayerInsufficientBalance);
-    }
     
     /// Asserts that the bet is valid
     /// * max_outcome: the maximum outcome allowed

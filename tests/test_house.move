@@ -16,6 +16,8 @@ module aptosino::test_house {
     const FEE_BPS: u64 = 100;
     const FEE_DIVISOR: u64 = 10_000;
     
+    struct TestGame has drop {}
+    
 
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     fun test_init(framework: &signer, aptosino: &signer) {
@@ -144,8 +146,57 @@ module aptosino::test_house {
     }
     
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
-    fun test_acquire_and_release_bet_lock_max_payout(framework: &signer, aptosino: &signer) {
+    fun test_approve_game(framework: &signer, aptosino: &signer) {
         test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        house::test_approve_game(aptosino, TestGame {});
+        assert!(house::is_game_approved<TestGame>(), 0);
+    }
+    
+    #[test(framework = @aptos_framework, aptosino = @aptosino, non_admin = @0x101)]
+    #[expected_failure(abort_code= house::ESignerNotAdmin)]
+    fun test_approve_game_not_admin(framework: &signer, aptosino: &signer, non_admin: &signer) {
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        house::test_approve_game(non_admin, TestGame {});
+    }
+    
+    #[test(framework = @aptos_framework, aptosino = @aptosino)]
+    #[expected_failure(abort_code= house::EGameAlreadyApproved)]
+    fun test_approve_game_twice(framework: &signer, aptosino: &signer) {
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        house::test_approve_game(aptosino, TestGame {});
+        house::test_approve_game(aptosino, TestGame {});
+    }
+    
+    #[test(framework = @aptos_framework, aptosino = @aptosino)]
+    fun test_revoke_game(framework: &signer, aptosino: &signer) {
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        house::test_approve_game(aptosino, TestGame {});
+        house::revoke_game<TestGame>(aptosino);
+        assert!(!house::is_game_approved<TestGame>(), 0);
+    }
+    
+    #[test(framework = @aptos_framework, aptosino = @aptosino, non_admin = @0x101)]
+    #[expected_failure(abort_code= house::ESignerNotAdmin)]
+    fun test_revoke_game_not_admin(framework: &signer, aptosino: &signer, non_admin: &signer) {
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        house::revoke_game<TestGame>(non_admin);
+    }
+    
+    #[test(framework = @aptos_framework, aptosino = @aptosino)]
+    #[expected_failure(abort_code= house::EGameNotApproved)]
+    fun test_revoke_game_not_approved(framework: &signer, aptosino: &signer) {
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        house::revoke_game<TestGame>(aptosino);
+    }
+    
+    fun setup_with_approved_game(framework: &signer, aptosino: &signer) {
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        house::test_approve_game(aptosino, TestGame {});
+    }
+    
+    #[test(framework = @aptos_framework, aptosino = @aptosino)]
+    fun test_acquire_and_release_bet_lock_max_payout(framework: &signer, aptosino: &signer) {
+        setup_with_approved_game(framework, aptosino);
         
         let bet_amount: u64 = 1_000_000;
         let fee = test_helpers::get_fee(bet_amount, FEE_BPS, FEE_DIVISOR);
@@ -156,7 +207,8 @@ module aptosino::test_house {
             signer::address_of(aptosino), 
             test_helpers::mint_coins(framework, bet_amount), 
             multiplier_numerator,
-            multiplier_denominator
+            multiplier_denominator,
+            TestGame {}
         );
         
         let max_payout = house::get_max_payout(&bet_lock);
@@ -174,7 +226,7 @@ module aptosino::test_house {
     
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     fun test_acquire_and_release_bet_lock_max_payout_partial_payout(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        setup_with_approved_game(framework, aptosino);
 
         let bet_amount: u64 = 1_000_000;
         let multiplier_numerator = 3;
@@ -184,7 +236,8 @@ module aptosino::test_house {
             signer::address_of(aptosino), 
             test_helpers::mint_coins(framework, bet_amount), 
             multiplier_numerator,
-            multiplier_denominator
+            multiplier_denominator,
+            TestGame {}
         );
 
         let max_payout = house::get_max_payout(&bet_lock);
@@ -202,7 +255,7 @@ module aptosino::test_house {
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     #[expected_failure(abort_code= house::EPayoutExceedsMaxPayout)]
     fun test_release_bet_lock_invalid_payout(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        setup_with_approved_game(framework, aptosino);
 
         let bet_amount: u64 = 1_000_000;
         let multiplier_numerator = 3;
@@ -212,7 +265,8 @@ module aptosino::test_house {
             signer::address_of(aptosino), 
             test_helpers::mint_coins(framework, bet_amount), 
             multiplier_numerator,
-            multiplier_denominator
+            multiplier_denominator,
+            TestGame {}
         );
 
         let max_payout = house::get_max_payout(&bet_lock);
@@ -223,7 +277,8 @@ module aptosino::test_house {
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     #[expected_failure(abort_code= house::EBetLessThanMinBet)]
     fun test_bet_less_than_min_bet(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        setup_with_approved_game(framework, aptosino);
+        
         let bet_amount: u64 = MIN_BET - 1;
         let multiplier_numerator = 3;
         let multiplier_denominator = 2;
@@ -231,7 +286,8 @@ module aptosino::test_house {
             signer::address_of(aptosino),
             test_helpers::mint_coins(framework, bet_amount),
             multiplier_numerator,
-            multiplier_denominator
+            multiplier_denominator,
+            TestGame {}
         );
         let max_payout = house::get_max_payout(&bet_lock);
         house::test_release_bet_lock(bet_lock, max_payout);
@@ -240,7 +296,7 @@ module aptosino::test_house {
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     #[expected_failure(abort_code= house::EBetExceedsMaxBet)]
     fun test_bet_greater_than_max_bet(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        setup_with_approved_game(framework, aptosino);
         let bet_amount: u64 = MAX_BET + 1;
         let multiplier_numerator = 3;
         let multiplier_denominator = 2;
@@ -248,7 +304,8 @@ module aptosino::test_house {
             signer::address_of(aptosino),
             test_helpers::mint_coins(framework, bet_amount),
             multiplier_numerator,
-            multiplier_denominator
+            multiplier_denominator,
+            TestGame {}
         );
         let max_payout = house::get_max_payout(&bet_lock);
         house::test_release_bet_lock(bet_lock, max_payout);
@@ -257,7 +314,7 @@ module aptosino::test_house {
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     #[expected_failure(abort_code= house::EBetExceedsMaxMultiplier)]
     fun test_bet_multiplier_greater_than_max_multiplier(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        setup_with_approved_game(framework, aptosino);
         let bet_amount: u64 = MIN_BET;
         let multiplier_numerator = MAX_MULTIPLIER + 1;
         let multiplier_denominator = 1;
@@ -265,7 +322,8 @@ module aptosino::test_house {
             signer::address_of(aptosino),
             test_helpers::mint_coins(framework, bet_amount),
             multiplier_numerator,
-            multiplier_denominator
+            multiplier_denominator,
+            TestGame {}
         );
         let max_payout = house::get_max_payout(&bet_lock);
         house::test_release_bet_lock(bet_lock, max_payout);
@@ -274,7 +332,7 @@ module aptosino::test_house {
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     #[expected_failure(abort_code= house::EBetLessThanMinMultiplier)]
     fun test_bet_multiplier_less_than_min_multiplier(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        setup_with_approved_game(framework, aptosino);
         let bet_amount: u64 = MIN_BET;
         let multiplier_numerator = 2;
         let multiplier_denominator = multiplier_numerator + 1;
@@ -282,7 +340,26 @@ module aptosino::test_house {
             signer::address_of(aptosino),
             test_helpers::mint_coins(framework, bet_amount),
             multiplier_numerator,
-            multiplier_denominator
+            multiplier_denominator,
+            TestGame {}
+        );
+        let max_payout = house::get_max_payout(&bet_lock);
+        house::test_release_bet_lock(bet_lock, max_payout);
+    }
+    
+    #[test(framework = @aptos_framework, aptosino = @aptosino)]
+    #[expected_failure(abort_code= house::EGameNotApproved)]
+    fun test_bet_game_not_approved(framework: &signer, aptosino: &signer) {
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        let bet_amount: u64 = MIN_BET;
+        let multiplier_numerator = 3;
+        let multiplier_denominator = 2;
+        let bet_lock = house::test_acquire_bet_lock(
+            signer::address_of(aptosino),
+            test_helpers::mint_coins(framework, bet_amount),
+            multiplier_numerator,
+            multiplier_denominator,
+            TestGame {}
         );
         let max_payout = house::get_max_payout(&bet_lock);
         house::test_release_bet_lock(bet_lock, max_payout);
@@ -291,7 +368,7 @@ module aptosino::test_house {
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     #[expected_failure(abort_code= house::EHouseInsufficientBalance)]
     fun test_house_insufficient_balance(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        setup_with_approved_game(framework, aptosino);
         let bet_amount: u64 = MAX_BET;
         let multiplier_numerator = MAX_MULTIPLIER;
         let multiplier_denominator = 1;
@@ -299,7 +376,8 @@ module aptosino::test_house {
             signer::address_of(aptosino),
             test_helpers::mint_coins(framework, bet_amount),
             multiplier_numerator,
-            multiplier_denominator
+            multiplier_denominator,
+            TestGame {}
         );
         let max_payout = house::get_max_payout(&bet_lock);
         house::test_release_bet_lock(bet_lock, max_payout);
@@ -307,7 +385,7 @@ module aptosino::test_house {
 
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     fun test_withdraw_fees(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        setup_with_approved_game(framework, aptosino);
 
         let bet_amount: u64 = 1_000_000;
         let fee = test_helpers::get_fee(bet_amount, FEE_BPS, FEE_DIVISOR);
@@ -318,7 +396,8 @@ module aptosino::test_house {
             signer::address_of(framework),
             test_helpers::mint_coins(framework, bet_amount),
             multiplier_numerator,
-            multiplier_denominator
+            multiplier_denominator,
+            TestGame {}
         );
         let max_payout = house::get_max_payout(&bet_lock);
         house::test_release_bet_lock(bet_lock, max_payout);

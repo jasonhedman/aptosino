@@ -3,31 +3,32 @@ module aptosino::roulette {
     use std::signer;
     use std::vector;
 
-    use aptos_framework::aptos_coin::AptosCoin;
-    use aptos_framework::coin;
     use aptos_framework::event;
     use aptos_framework::randomness;
 
     use aptosino::house;
-    
+    use aptosino::game;
+
     // constants
     
     const NUM_OUTCOMES: u8 = 36;
 
     // error codes
     
-    /// Player does not have enough balance to bet
-    const EPlayerInsufficientBalance: u64 = 101;
     /// The number of bets does not match the number of predicted outcomes
-    const ENumberOfBetsDoesNotMatchNumberOfPredictedOutcomes: u64 = 102;
+    const ENumberOfBetsDoesNotMatchNumberOfPredictedOutcomes: u64 = 101;
     /// The number of bets is zero
-    const ENumberOfBetsIsZero: u64 = 103;
+    const ENumberOfBetsIsZero: u64 = 102;
     /// The bet amount is zero
-    const EBetAmountIsZero: u64 = 104;
+    const EBetAmountIsZero: u64 = 103;
     /// The number of predicted outcomes is zero for a bet
-    const ENumberOfPredictedOutcomesIsZero: u64 = 105;
+    const ENumberOfPredictedOutcomesIsZero: u64 = 104;
     /// A predicted outcome is out of range
-    const EPredictedOutcomeOutOfRange: u64 = 106;
+    const EPredictedOutcomeOutOfRange: u64 = 105;
+    
+    // game type
+    
+    struct RouletteGame has drop {}
 
     // events
 
@@ -44,6 +45,14 @@ module aptosino::roulette {
         result: u8,
         /// The payout to the player
         payout: u64,
+    }
+    
+    // admin functions
+
+    /// Approves the dice game on the house module
+    /// * admin: the signer of the admin account
+    public entry fun approve_game(admin: &signer) {
+        game::approve_game<RouletteGame>(admin, RouletteGame {});
     }
 
     // game functions
@@ -72,38 +81,46 @@ module aptosino::roulette {
         predicted_outcomes: vector<vector<u8>>,
         result: u8
     ) {
-        let player_address = signer::address_of(player);
-        let total_bet_amount = 0;
-        vector::for_each(bet_amounts, |bet_amount| { total_bet_amount = total_bet_amount + bet_amount; });
-        assert_player_has_enough_balance(player_address, total_bet_amount);
-
         assert_bets_are_valid(&bet_amounts, &predicted_outcomes);
-        
-        let total_payout = 0;
-        
+
+        let total_bet_amount = 0;
+        let total_slot_predictions = 0;
         let i = 0;
-        // the length of bet_amounts and predicted_outcomes is already checked to be equal
-        while(i < vector::length(&bet_amounts)) {
+        while (i < vector::length(&bet_amounts)) {
             let outcomes = vector::borrow(&predicted_outcomes, i);
             assert_predicted_outcome_is_valid(outcomes);
-            let bet_lock = house::acquire_bet_lock(
-                player_address,
-                coin::withdraw<AptosCoin>(player, *vector::borrow(&bet_amounts, i)),
-                (NUM_OUTCOMES as u64),
-                vector::length(outcomes)
-            );
+            total_slot_predictions = total_slot_predictions + vector::length(outcomes);
+
+            total_bet_amount = total_bet_amount + *vector::borrow(&bet_amounts, i);
+            
+            i = i + 1;
+        };
+
+        let bet_lock = game::acquire_bet_lock(
+            player,
+            total_bet_amount,
+            (NUM_OUTCOMES as u64) * vector::length(&bet_amounts),
+            total_slot_predictions,
+            RouletteGame {}
+        );
+        
+        let total_payout = 0;
+        i = 0;
+        while(i < vector::length(&bet_amounts)) {
+            let outcomes = vector::borrow(&predicted_outcomes, i);
             let payout = if(vector::any(outcomes, |outcome| { *outcome == result })) {
-                house::get_max_payout(&bet_lock)
+                get_payout(*vector::borrow(&bet_amounts, i), *outcomes)
             } else {
                 0
             };
             total_payout = total_payout + payout;
-            house::release_bet_lock(bet_lock, payout);
             i = i + 1;
         };
 
+        game::release_bet_lock(bet_lock, total_payout);
+
         event::emit(SpinWheelEvent {
-            player_address,
+            player_address: signer::address_of(player),
             bet_amounts,
             predicted_outcomes,
             result,
@@ -126,13 +143,6 @@ module aptosino::roulette {
     }
 
     // assert statements
-
-    /// Asserts that the player has enough balance to bet the given amount
-    /// * player: the signer of the player account
-    /// * amount: the amount to bet
-    fun assert_player_has_enough_balance(player_address: address, amount: u64) {
-        assert!(coin::balance<AptosCoin>(player_address) >= amount, EPlayerInsufficientBalance);
-    }
 
     /// Asserts that the number of bets and predicted outcomes are equal in length, non-empty, and non-zero
     /// * multiplier: the multiplier of the bet
