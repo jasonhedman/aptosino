@@ -32,12 +32,8 @@ module aptosino::house {
     const EBetLessThanMinBet: u64 = 107;
     /// The bet amount exceeds the maximum bet allowed
     const EBetExceedsMaxBet: u64 = 108;
-    /// The bet multiplier is less than the minimum multiplier allowed
-    const EBetLessThanMinMultiplier: u64 = 109;
     /// The bet multiplier exceeds the maximum multiplier allowed
-    const EBetExceedsMaxMultiplier: u64 = 110;
-    /// The payout exceeds the maximum payout
-    const EPayoutExceedsMaxPayout: u64 = 111;
+    const EBetExceedsMaxMultiplier: u64 = 109;
 
     /// Data stored on the house resource account
     struct House has key {
@@ -59,14 +55,6 @@ module aptosino::house {
     
     /// A game approved by the house
     struct ApprovedGame<phantom GameType: drop> has key {}
-    
-    /// lock for enforcing betting rules
-    struct BetLock<phantom GameType> {
-        /// The address of the bettor
-        bettor: address,
-        /// The maximum amount of coins the bettor can win
-        max_payout: Coin<AptosCoin>
-    }
 
     /// Initializes the house with the given parameters and deposits the given coins into the house resource account
     /// * deployer: the signer of the account that deployed the module
@@ -105,12 +93,17 @@ module aptosino::house {
     
     // betting functions
     
+    /// Pays out a bet to the bettor
+    /// * bettor: the address of the bettor
+    /// * bet: the coins to bet
+    /// * payout_numerator: the numerator of the payout
+    /// * payout_denominator: the denominator of the payout
+    /// * _witness: an instance of the GameType struct, enforces that the call is made from the correct game module
     public fun pay_out<GameType: drop>(
         bettor: address,
         bet: Coin<AptosCoin>,
-        multiplier_numerator: u64,
-        multiplier_denominator: u64,
-        is_win: bool,
+        payout_numerator: u64,
+        payout_denominator: u64,
         _witness: GameType
     )
     acquires House {
@@ -119,73 +112,21 @@ module aptosino::house {
         let house = borrow_global_mut<House>(get_house_address());
         
         let bet_amount = coin::value(&bet);
-        assert_bet_is_valid(house, bet_amount, multiplier_numerator, multiplier_denominator);
+        assert_bet_is_valid(house, bet_amount);
+        assert_payout_is_valid(house, payout_numerator, payout_denominator);
         
         coin::deposit(get_house_address(), bet);
-        assert_house_has_enough_balance(house, bet_amount, multiplier_numerator, multiplier_denominator);
+        assert_house_has_enough_balance(house, bet_amount, payout_numerator, payout_denominator);
         
         let fee = bet_amount * house.fee_bps / FEE_BPS_DIVISOR;
         house.accrued_fees = house.accrued_fees + fee;
         
-        if(is_win) {
-            let payout = bet_amount * multiplier_numerator / multiplier_denominator - fee;
+        if(payout_numerator > 0) {
+            let payout = bet_amount * payout_numerator / payout_denominator - fee;
             coin::deposit(
                 bettor, 
                 coin::withdraw<AptosCoin>(&account::create_signer_with_capability(&house.signer_cap), payout)
             );
-        }
-    }
-    
-    /// Acquires a lock for the bettor to enforce betting rules
-    /// * bettor: the address of the bettor
-    /// * bet: the coins to bet
-    /// * multiplier: the multiplier of the bet
-    /// * multiplier_denominator: the denominator of the multiplier
-    public fun acquire_bet_lock<GameType: drop>(
-        bettor: address, 
-        bet: Coin<AptosCoin>, 
-        multiplier_numerator: u64,
-        multiplier_denominator: u64,
-        _witness: GameType
-    ): BetLock<GameType>
-    acquires House {
-        
-        
-        let house = borrow_global_mut<House>(get_house_address());
-        
-        let bet_amount = coin::value(&bet);
-
-        assert_bet_is_valid(house, bet_amount, multiplier_numerator, multiplier_denominator);
-        
-        coin::deposit(get_house_address(), bet);
-        assert_house_has_enough_balance(house, bet_amount, multiplier_numerator, multiplier_denominator);
-        
-        let fee = bet_amount * house.fee_bps / FEE_BPS_DIVISOR;
-        house.accrued_fees = house.accrued_fees + fee;
-        
-        BetLock {
-            bettor,
-            max_payout: coin::withdraw<AptosCoin>(
-                &account::create_signer_with_capability(&house.signer_cap), 
-                bet_amount * multiplier_numerator / multiplier_denominator - fee
-            )
-        }
-    }
-    
-    /// Releases the lock for the bettor and pays out the winnings
-    /// * bet_lock: the bet lock
-    /// * payout: the payout amount
-    public fun release_bet_lock<GameType>(bet_lock: BetLock<GameType>, payout: u64) {
-        assert_payout_is_valid(&bet_lock, payout);
-        let BetLock {
-            bettor,
-            max_payout
-        } = bet_lock;
-        coin::deposit(bettor, coin::extract(&mut max_payout, payout));
-        if (coin::value(&max_payout) > 0) {
-            coin::deposit(get_house_address(), max_payout);
-        } else {
-            coin::destroy_zero(max_payout);
         }
     }
 
@@ -271,14 +212,6 @@ module aptosino::house {
     public entry fun set_max_multiplier(signer: &signer, max_multiplier: u64) acquires House {
         assert_signer_is_admin(signer);
         borrow_global_mut<House>(get_house_address()).max_multiplier = max_multiplier;
-    }
-    
-    // getter functions
-    
-    /// Gets the max payout from a bet lock
-    /// * bet_lock: the bet lock
-    public fun get_max_payout<GameType>(bet_lock: &BetLock<GameType>): u64 {
-        coin::value(&bet_lock.max_payout)
     }
     
     // view functions
@@ -394,41 +327,16 @@ module aptosino::house {
     /// * bet_amount: the amount to bet
     /// * multiplier: the multiplier of the bet
     /// * multiplier_denominator: the denominator of the multiplier
-    fun assert_bet_is_valid(house: &House, bet_amount: u64, multiplier_numerator: u64, multiplier_denominator: u64) {
+    fun assert_bet_is_valid(house: &House, bet_amount: u64) {
         assert!(bet_amount >= house.min_bet, EBetLessThanMinBet);
         assert!(bet_amount <= house.max_bet, EBetExceedsMaxBet);
-        assert!(multiplier_numerator > multiplier_denominator, EBetLessThanMinMultiplier);
-        assert!(multiplier_numerator <= house.max_multiplier * multiplier_denominator, EBetExceedsMaxMultiplier);
+        
     }
     
     /// Asserts that the payout is valid
     /// bet_lock: the bet lock
     /// payout: the payout
-    fun assert_payout_is_valid<GameType>(bet_lock: &BetLock<GameType>, payout: u64) {
-        assert!(payout <= get_max_payout(bet_lock), EPayoutExceedsMaxPayout);
-    }
-    
-    // test functions
-    
-    #[test_only]
-    public fun test_approve_game<GameType: drop>(signer: &signer, _witness: GameType) acquires House {
-        approve_game(signer, _witness);
-    }
-    
-    #[test_only]
-    public fun test_acquire_bet_lock<GameType: drop>(
-        bettor: address, 
-        bet: Coin<AptosCoin>,
-        multiplier_numerator: u64, 
-        multiplier_denominator: u64,
-        witness: GameType
-    ): BetLock<GameType>
-    acquires House {
-        acquire_bet_lock(bettor, bet, multiplier_numerator, multiplier_denominator, witness)
-    }
-    
-    #[test_only]
-    public fun test_release_bet_lock<GameType: drop>(bet_lock: BetLock<GameType>, payout: u64) {
-        release_bet_lock(bet_lock, payout);
+    fun assert_payout_is_valid(house: &House, payout_numerator: u64, payout_denominator: u64) {
+        assert!(payout_numerator <= house.max_multiplier * payout_denominator, EBetExceedsMaxMultiplier);
     }
 }

@@ -151,16 +151,15 @@ module aptosino::blackjack {
             coin::deposit(player_address, bet);
         } else if (player_value > dealer_value) {
             // player wins
-            if(player_value == 21 && vector::length(&player_cards) == 2) {
-                // blackjack, pay out 2.5x
-                house::pay_out(player_address, bet, 5, 2, true, BlackjackGame {});
+            let multiplier_numerator = if(player_value == 21 && vector::length(&player_cards) == 2) {
+                5 // blackjack
             } else {
-                // normal win, pay out 2x
-                house::pay_out(player_address, bet, 2, 1, true, BlackjackGame {});
-            }
+                4 // normal win
+            };
+            house::pay_out(player_address, bet, multiplier_numerator, 2, BlackjackGame {});
         } else {
             // dealer wins
-            house::pay_out(player_address, bet, 0, 1, false, BlackjackGame {});
+            house::pay_out(player_address, bet, 0, 1, BlackjackGame {});
         };
         object::delete(delete_ref);
         

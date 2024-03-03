@@ -211,15 +211,9 @@ module aptosino::slots {
             (num_mines as u64),
             vector::length(&gem_coordinates)
         );
-        let bet_lock = house::acquire_bet_lock(
-            player_address,
-            bet,
-            payout_numerator,
-            payout_denominator,
-            MinesGame {}
-        );
-        let payout = house::get_max_payout(&bet_lock);
-        house::release_bet_lock(bet_lock, payout);
+        let player_balance_before = coin::balance<AptosCoin>(player_address);
+        house::pay_out(player_address, bet, payout_numerator, payout_denominator, MinesGame {});
+        let payout = coin::balance<AptosCoin>(player_address) - player_balance_before;
         object::delete(delete_ref);
         event::emit<CashOut>(
             CashOut {
@@ -245,14 +239,7 @@ module aptosino::slots {
             bet,
             delete_ref,
         } = mines_machine;
-        let bet_lock = house::acquire_bet_lock(
-            player_address, 
-            bet, 
-            101, 
-            100, 
-            MinesGame {}
-        );
-        house::release_bet_lock(bet_lock, 0);
+        house::pay_out(player_address, bet, 0, 1, MinesGame {});
         object::delete(delete_ref);
         event::emit<MineRevealed>(
             MineRevealed {
