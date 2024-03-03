@@ -1,4 +1,4 @@
-module aptosino::slots {
+module aptosino::mines {
 
     use std::signer;
     use std::vector;
