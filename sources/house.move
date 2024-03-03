@@ -6,12 +6,6 @@ module aptosino::house {
     use aptos_framework::aptos_coin::AptosCoin;
     use aptos_framework::coin;
     use aptos_framework::coin::Coin;
-    
-    // friend modules
-    
-    // TODO: This will be the base game module in the future
-    
-    friend aptosino::game;
 
     // constants
 
@@ -116,7 +110,7 @@ module aptosino::house {
     /// * bet: the coins to bet
     /// * multiplier: the multiplier of the bet
     /// * multiplier_denominator: the denominator of the multiplier
-    public(friend) fun acquire_bet_lock<GameType: drop>(
+    public fun acquire_bet_lock<GameType: drop>(
         bettor: address, 
         bet: Coin<AptosCoin>, 
         multiplier_numerator: u64,
@@ -150,7 +144,7 @@ module aptosino::house {
     /// Releases the lock for the bettor and pays out the winnings
     /// * bet_lock: the bet lock
     /// * payout: the payout amount
-    public(friend) fun release_bet_lock<GameType>(bet_lock: BetLock<GameType>, payout: u64) {
+    public fun release_bet_lock<GameType>(bet_lock: BetLock<GameType>, payout: u64) {
         assert_payout_is_valid(&bet_lock, payout);
         let BetLock {
             bettor,
@@ -169,7 +163,7 @@ module aptosino::house {
     /// Approves a game to access the house
     /// * signer: the signer of the admin account
     /// * _witness: an instance of the GameType struct, enforces that the call is made from the correct game module
-    public(friend) fun approve_game<GameType: drop>(signer: &signer, _witness: GameType) acquires House {
+    public fun approve_game<GameType: drop>(signer: &signer, _witness: GameType) acquires House {
         assert_signer_is_admin(signer);
         assert_game_is_not_approved<GameType>();
         let house = borrow_global<House>(get_house_address());

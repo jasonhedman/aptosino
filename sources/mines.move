@@ -3,9 +3,10 @@ module aptosino::slots {
     use std::signer;
     use std::vector;
 
+    use aptos_framework::coin::{Self, Coin};
     use aptos_framework::aptos_coin::AptosCoin;
-    use aptos_framework::coin;
     use aptos_framework::event;
+    use aptos_framework::object::{Self, Object, DeleteRef};
     use aptos_framework::randomness;
 
     use aptosino::house;
@@ -21,138 +22,270 @@ module aptosino::slots {
 
     /// Player does not have enough balance to bet
     const EPlayerInsufficientBalance: u64 = 101;
-    /// The number of bets does not match the number of predicted outcomes
-    const ENumberOfBetsDoesNotMatchNumberOfPredictedOutcomes: u64 = 102;
-    /// The number of bets is zero
-    const ENumberOfBetsIsZero: u64 = 103;
     /// The bet amount is zero
-    const EBetAmountIsZero: u64 = 104;
-    /// The number of predicted outcomes is zero for a bet
-    const ENumberOfPredictedOutcomesIsZero: u64 = 105;
-    /// A predicted outcome is out of range
-    const EPredictedOutcomeOutOfRange: u64 = 106;
+    const EBetAmountIsZero: u64 = 102;
     /// The mines machine has invalid rows
-    const EMinesMachineInvalidRows: u64 = 107;
+    const EMinesMachineInvalidRows: u64 = 103;
     /// The mines machine has invalid columns
-    const EMinesMachineInvalidCols: u64 = 108;
+    const EMinesMachineInvalidCols: u64 = 104;
     /// The mines machine has invalid mines
-    const EMinesMachineInvalidMines: u64 = 109;
+    const EMinesMachineInvalidMines: u64 = 105;
+    /// The player is not the player of the machine
+    const EPlayerIsNotPlayer: u64 = 106;
+    /// There are no more gems to reveal
+    const ENoMoreGems: u64 = 107;
+    /// A predicted outcome is out of range
+    const EPredictedOutcomeOutOfRange: u64 = 108;
     /// The mines machine has invalid mines
-    const ECellIsRevealed: u64 = 110;
+    const ECellIsRevealed: u64 = 109;
+    
+    // game type
+    
+    struct MinesGame has drop {}
+    
+    // structs
+
+    /// Structure representing the mines machine
+    struct MinesMachine has key {
+        /// The address of the player
+        player_address: address,
+        /// The coordinates of the gems found by the player
+        gem_coordinates: vector<vector<u8>>,
+        /// The number of rows in the mines machine
+        num_rows: u8,
+        /// The number of columns in the mines machine
+        num_cols: u8,
+        /// The number of mines in the mines machine
+        num_mines: u8,
+        /// The coins wagered by the player
+        bet: Coin<AptosCoin>,
+        /// The delete ref for resolution of the game
+        delete_ref: DeleteRef,
+    }
 
     // events
-
+    
     #[event]
-    /// Event emitted when the player plays the game
-    struct CellSelected has drop, store {
+    /// Event emitted when the mines machine is created
+    /// * player_address: the address of the player
+    /// * bet_amount: the amount staked
+    /// * num_rows: the number of rows in the mines machine
+    /// * num_cols: the number of columns in the mines machine
+    /// * num_mines: the number of mines in the mines machine
+    struct MinesMachineCreated has drop, store {
         /// The address of the player
         player_address: address,
         /// The amount staked
         bet_amount: u64,
-        /// The coordinates of the cell revealed
-        predicted_coordinates: vector<u8>,
-        /// The result of the selection (true if the cell is not a mine, false if it is)
-        result: bool,
-        /// The payout ratio (numerator and denominator)
-        payout_ratio: vector<u8>,
+        /// The number of rows in the mines machine
+        num_rows: u8,
+        /// The number of columns in the mines machine
+        num_cols: u8,
+        /// The number of mines in the mines machine
+        num_mines: u8,
+    }
+    
+    #[event]
+    /// Event emitted when the player reveals a mine
+    struct MineRevealed has drop, store {
+        /// The address of the player
+        player_address: address,
+        /// The row of the cell selected
+        predicted_row: u8,
+        /// The column of the cell selected
+        predicted_col: u8,
     }
 
-    /// Structure representing the mines machine for verification
-    struct MinesMachine has drop {
-        revealed: vector<vector<u8>>,
-        rows: u8,
-        cols: u8,
-        mines: u8,
+    #[event]
+    /// Event emitted when the selects a gem
+    struct GemRevealed has drop, store {
+        /// The address of the player
+        player_address: address,
+        /// The row of the cell selected
+        predicted_row: u8,
+        /// The column of the cell selected
+        predicted_col: u8,
+    }
+
+    #[event]
+    /// Event emitted when the player cashes out
+    struct CashOut has drop, store {
+        /// The address of the player
+        player_address: address,
+        /// The payout amount
+        payout: u64,
+    }
+    
+    // admin functions
+    
+    /// Approves the game
+    /// * admin: the signer of the admin account
+    public entry fun approve_game(admin: &signer) {
+        house::approve_game(admin, MinesGame {});
     }
 
     // game functions
+    
+    /// Creates the mines machine
+    /// * player: the signer of the player account
+    /// * bet_amount: the amount to bet
+    /// * num_rows: the number of rows in the mines machine
+    /// * num_cols: the number of columns in the mines machine
+    /// * num_mines: the number of mines in the mines machine
+    public entry fun create_mines_machine(
+        player: &signer,
+        bet_amount: u64,
+        num_rows: u8,
+        num_cols: u8,
+        num_mines: u8,
+    ) 
+    {
+        let player_address = signer::address_of(player);
+        assert_player_has_enough_balance(player_address, bet_amount);
+        assert_bet_is_valid(bet_amount);
+        assert_mines_machine_valid(num_rows, num_cols, num_mines);
+        
+        let constructor_ref = object::create_object(house::get_house_address());
+        
+        move_to(&object::generate_signer(&constructor_ref), MinesMachine {
+            player_address,
+            gem_coordinates: vector::empty<vector<u8>>(),
+            num_rows,
+            num_cols,
+            num_mines,
+            bet: coin::withdraw<AptosCoin>(player, bet_amount),
+            delete_ref: object::generate_delete_ref(&constructor_ref)
+        });
+
+        event::emit<MinesMachineCreated>(
+            MinesMachineCreated {
+                player_address,
+                bet_amount,
+                num_rows,
+                num_cols,
+                num_mines,
+            }
+        );
+    }
 
     /// Creates and verifies the mines machine and pays out the player accordingly
     /// * player: the signer of the player account
+    /// * mines_machine: the mines machine
+    /// * predicted_outcomes: the coordinates of the cells to select
     /// * bet_amount: the amount to bet
-    /// * rows: the number of rows in the mines machine
-    /// * cols: the number of columns in the mines machine
-    /// * mines: the number of mines in the mines machine
-    /// * revealed: the coordinates of the revealed cells
-    /// * predicted_coordinates: the coordinates of the cell to select
     public entry fun select_cell(
         player: &signer,
-        bet_amount: u64,
-        rows: u8,
-        cols: u8,
-        mines: u8,
-        revealed: vector<vector<u8>>,
-        predicted_coordinates: vector<u8>,
-    ) {
-        let mines_machine = MinesMachine {
-            revealed,
-            rows,
-            cols,
-            mines,
-        };
-
-        assert_mines_machine_valid(&mines_machine);
-
-        select_cell_impl(player, bet_amount, predicted_coordinates, &mines_machine);
+        mines_machine_obj: Object<MinesMachine>,
+        predicted_row: u8,
+        predicted_col: u8,
+    ) 
+    acquires MinesMachine {
+        let mines_machine = borrow_global<MinesMachine>(object::object_address(&mines_machine_obj));
+        assert_player_is_player(player, mines_machine.player_address);
+        assert_predicted_outcome_is_valid(predicted_row, predicted_col, mines_machine);
+        let is_mine = randomness::u8_range(0, remaining_cells(mines_machine)) < mines_machine.num_mines;
+        if(is_mine) {
+            select_mine(mines_machine_obj, predicted_row, predicted_col);
+        } else {
+            select_gem(mines_machine_obj, predicted_row, predicted_col);
+        }
     }
 
-    /// Selects a cell in the mines machine
+    /// Cashes out the player and deletes the mines machine
     /// * player: the signer of the player account
-    /// * bet_amount: the amount to bet
-    /// * predicted_coordinates: the coordinates of the cell to select
-    /// * mines_machine: the mines machine
-    fun select_cell_impl(
-        player: &signer,
-        bet_amount: u64,
-        predicted_coordinates: vector<u8>,
-        mines_machine: &MinesMachine,
-    ) {
-        let player_address = signer::address_of(player);
-        assert_player_has_enough_balance(player_address, bet_amount);
-
-        assert_bet_is_valid(bet_amount);
-
-        /// The user wins if the cell is not a mine, or if the condition is not met
-        let explode_flag = false;
-
-        let num_mines = mines_machine.mines;
-        let i = 0;
-        let mines = &mut vector::empty<vector<u8>>();
-        while (i < num_mines) {
-            let mine = &mut vector::empty<u8>();
-
-            let mine_row = randomness::u8_range(0, mines_machine.rows);
-            vector::push_back<u8>(mine, mine_row);
-            let mine_col = randomness::u8_range(0, mines_machine.cols);
-            vector::push_back<u8>(mine, mine_col);
-
-            /// Ensure that the mine is unique and valid
-            if (!vector::contains<vector<u8>>(mines, mine) && !vector::contains<vector<u8>>(&mines_machine.revealed, mine)) {
-                vector::push_back<vector<u8>>(mines, *mine);
-                i = i + 1;
-            };
-
-            /// Check if user has busted
-            if (vector::contains<vector<u8>>(mines, &predicted_coordinates)) {
-                explode_flag = true;
-            };
-        };
-
-        let payout_ratio: vector<u8>;
-        // If the player has busted, the payout ratio is 0
-        if (explode_flag) {
-            payout_ratio = vector<u8>[0, 1];
-        } else {
-            payout_ratio = get_payout_multiplier(mines_machine.rows, mines_machine.cols, mines_machine.mines, &mines_machine.revealed);
-        };
-
-        event::emit<CellSelected>(
-            CellSelected {
+    /// * mines_machine_obj: the mines machine object
+    public entry fun cash_out(player: &signer, mines_machine_obj: Object<MinesMachine>) acquires MinesMachine {
+        let mines_machine = move_from<MinesMachine>(object::object_address(&mines_machine_obj));
+        let MinesMachine {
+            player_address,
+            gem_coordinates,
+            num_rows,
+            num_cols,
+            num_mines,
+            bet,
+            delete_ref,
+        } = mines_machine;
+        assert_player_is_player(player, player_address);
+        let (payout_numerator, payout_denominator) = payout_multiplier(
+            (num_rows as u64) * (num_cols as u64),
+            (num_mines as u64),
+            vector::length(&gem_coordinates)
+        );
+        let bet_lock = house::acquire_bet_lock(
+            player_address,
+            bet,
+            payout_numerator,
+            payout_denominator,
+            MinesGame {}
+        );
+        let payout = house::get_max_payout(&bet_lock);
+        house::release_bet_lock(bet_lock, payout);
+        object::delete(delete_ref);
+        event::emit<CashOut>(
+            CashOut {
                 player_address,
-                bet_amount,
-                predicted_coordinates,
-                result: !explode_flag,
-                payout_ratio,
+                payout,
+            }
+        );
+    }
+    
+    /// Implementation of logic when player selects a mine
+    /// * mines_machine_obj: the mines machine object
+    /// * predicted_row: the row of the cell selected
+    /// * predicted_col: the column of the cell selected
+    fun select_mine(mines_machine_obj: Object<MinesMachine>, predicted_row: u8, predicted_col: u8) 
+    acquires MinesMachine {
+        let mines_machine = move_from<MinesMachine>(object::object_address(&mines_machine_obj));
+        let MinesMachine {
+            player_address,
+            gem_coordinates: _,
+            num_rows: _,
+            num_cols: _,
+            num_mines: _,
+            bet,
+            delete_ref,
+        } = mines_machine;
+        let bet_lock = house::acquire_bet_lock(
+            player_address, 
+            bet, 
+            101, 
+            100, 
+            MinesGame {}
+        );
+        house::release_bet_lock(bet_lock, 0);
+        object::delete(delete_ref);
+        event::emit<MineRevealed>(
+            MineRevealed {
+                player_address,
+                predicted_row,
+                predicted_col,
+            }
+        );
+        event::emit<CashOut>(
+            CashOut {
+                player_address,
+                payout: 0,
+            }
+        );
+    }
+    
+    /// Implementation of logic when player selects a gem
+    /// * mines_machine_obj: the mines machine object
+    /// * predicted_row: the row of the cell selected
+    /// * predicted_col: the column of the cell selected
+    fun select_gem(
+        mines_machine_obj: Object<MinesMachine>,
+        predicted_row: u8,
+        predicted_col: u8,
+    ) 
+    acquires MinesMachine {
+        let mines_machine = borrow_global_mut<MinesMachine>(object::object_address(&mines_machine_obj));
+        vector::push_back(&mut mines_machine.gem_coordinates, vector[predicted_row, predicted_col]);
+        event::emit<GemRevealed>(
+            GemRevealed {
+                player_address: mines_machine.player_address,
+                predicted_row,
+                predicted_col,
             }
         );
     }
@@ -166,16 +299,48 @@ module aptosino::slots {
     /// * cols: the number of columns in the mines machine
     /// * mines: the number of mines in the mines machine
     /// * revealed: the coordinates of the revealed cells
-    public fun get_payout_multiplier(rows: u8, cols: u8, mines: u8, revealed: &vector<vector<u8>>):
-    vector<u8> {
-        /// The number of remaining cells is the total number of cells minus the number of revealed cells
-        let num_remaining_cells = rows * cols - (vector::length<vector<u8>>(revealed) as u8);
-        /// The multiplier numerator is the number of remaining cells that can be selected
-        let multiplier_numerator = num_remaining_cells;
-        /// The multiplier denominator is the number of cells that are not mines
-        let multiplier_denominator = num_remaining_cells - mines;
-        vector<u8>[multiplier_numerator, multiplier_denominator]
+    public fun get_payout_multiplier(mines_machine_obj: Object<MinesMachine>): (u64, u64) acquires MinesMachine {
+        let mines_machine = borrow_global<MinesMachine>(object::object_address(&mines_machine_obj));
+        payout_multiplier(
+            (mines_machine.num_rows as u64) * (mines_machine.num_cols as u64), 
+            (mines_machine.num_mines as u64), 
+            vector::length(&mines_machine.gem_coordinates)
+        )
     }
+    
+    // private getters
+    
+    /// Returns the number of remaining cells in the mines machine
+    /// * mines_machine: the mines machine
+    fun remaining_cells(mines_machine: &MinesMachine): u8 {
+        mines_machine.num_rows * mines_machine.num_cols - 
+            (vector::length<vector<u8>>(&mines_machine.gem_coordinates) as u8)
+    }
+    
+    /// Returns the number of remaining mines in the mines machine
+    /// * mines_machine: the mines machine
+    fun remaining_gems(mines_machine: &MinesMachine): u8 {
+        remaining_cells(mines_machine) - mines_machine.num_mines
+    }
+    
+    /// Returns the payout multiplier for the current state of the mines machine
+    /// Calculated by inverting the probability of getting to the current state of the mines machine
+    /// nCr(n, g) / nCr(n - m, g)
+    /// * n: the total number of cells
+    /// * m: the number of mines
+    /// * g: the number of gems found
+    fun payout_multiplier(n: u64, m: u64, g: u64): (u64, u64) {
+        let multiplier_numerator = 1;
+        let multiplier_denominator = 1;
+        let i = 0;
+        while(i < g) {
+            multiplier_numerator = multiplier_numerator * (n - i);
+            multiplier_denominator = multiplier_denominator * (n - m - i);
+            i = i + 1;
+        };
+        (multiplier_numerator, multiplier_denominator)
+    }
+    
 
     // assert statements
 
@@ -186,49 +351,59 @@ module aptosino::slots {
         assert!(coin::balance<AptosCoin>(player_address) >= amount, EPlayerInsufficientBalance);
     }
 
-    /// Asserts that the mines machine is valid
-    /// * mines_machine: the mines machine
-    fun assert_mines_machine_valid(mines_machine: &MinesMachine) {
-        assert!(mines_machine.rows > 0 && mines_machine.rows < MAX_ROWS, EMinesMachineInvalidRows);
-        assert!(mines_machine.cols > 0 && mines_machine.cols < MAX_COLS, EMinesMachineInvalidCols);
-        /// Number of mines is less than the number of remaining cells
-        assert!(mines_machine.mines > 0 && mines_machine.mines <
-            (mines_machine.rows * mines_machine.cols - (vector::length<vector<u8>>(&mines_machine.revealed) as u8)), EMinesMachineInvalidMines);
-    }
-
 
     /// Asserts that the bet is non-zero
     fun assert_bet_is_valid(bet: u64) {
         assert!(bet > 0, EBetAmountIsZero);
     }
 
+    /// Asserts that the mines machine input is valid
+    /// * num_rows: the number of rows in the mines machine
+    /// * num_cols: the number of columns in the mines machine
+    /// * num_mines: the number of mines in the mines machine
+    fun assert_mines_machine_valid(num_rows: u8, num_cols: u8, num_mines: u8) {
+        assert!(num_cols > 0 && num_rows <= MAX_ROWS, EMinesMachineInvalidRows);
+        assert!(num_cols > 0 && num_cols <= MAX_COLS, EMinesMachineInvalidCols);
+        assert!(num_mines > 0 && num_mines < num_rows * num_cols, EMinesMachineInvalidMines);
+    }
+    
+    /// Asserts that the signer is the player of the mines machine
+    /// * player: the signer of the player account
+    /// * player_address: the address of the mines player
+    fun assert_player_is_player(player: &signer, player_address: address) {
+        assert!(signer::address_of(player) == player_address, EPlayerIsNotPlayer);
+    }
+
     /// Asserts that each outcome in a vector of predicted outcomes is within the range of possible outcomes
-    /// * predicted_outcomes: vector representing chosen coordinates
-    /// * revealed: vector representing revealed coordinates
-    fun assert_predicted_outcome_is_valid(predicted_outcome: &vector<u8>, revealed: &vector<vector<u8>>) {
-        assert!(*vector::borrow(predicted_outcome, 0) >= 0, EPredictedOutcomeOutOfRange);
-        assert!(*vector::borrow(predicted_outcome, 0) < MAX_ROWS, EPredictedOutcomeOutOfRange);
-        assert!(*vector::borrow(predicted_outcome, 1) >= 0, EPredictedOutcomeOutOfRange);
-        assert!(*vector::borrow(predicted_outcome, 1) < MAX_COLS, EPredictedOutcomeOutOfRange);
-        assert!(!vector::contains<vector<u8>>(revealed, predicted_outcome), ECellIsRevealed);
+    /// * predicted_row: the row of the cell selected
+    /// * predicted_col: the column of the cell selected
+    /// * mines_machine: the mines machine
+    fun assert_predicted_outcome_is_valid(predicted_row: u8, predicted_col: u8, mines_machine: &MinesMachine) {
+        assert!(predicted_row < mines_machine.num_rows, EPredictedOutcomeOutOfRange);
+        assert!(predicted_col < mines_machine.num_cols, EPredictedOutcomeOutOfRange);
+        assert!(remaining_gems(mines_machine) > 0, ENoMoreGems);
+        assert!(!vector::contains<vector<u8>>(
+            &mines_machine.gem_coordinates, 
+            &vector[predicted_row, predicted_col]
+        ), ECellIsRevealed);
     }
     // test functions
 
     #[test_only]
-    public fun test_select_cell(
-        player: &signer,
-        bet_amount: u64,
-        rows: u8,
-        cols: u8,
-        mines: u8,
-        revealed: vector<vector<u8>>,
-        predicted_coordinates: vector<u8>,
-    ) {
-        select_cell_impl(player, bet_amount, predicted_coordinates, &MinesMachine {
-            revealed,
-            rows,
-            cols,
-            mines,
-        });
+    public fun select_mine_impl(
+        mines_machine_obj: Object<MinesMachine>,
+        predicted_row: u8,
+        predicted_col: u8,
+    ) acquires MinesMachine {
+        select_mine(mines_machine_obj, predicted_row, predicted_col);
+    }
+    
+    #[test_only]
+    public fun select_gem_impl(
+        mines_machine_obj: Object<MinesMachine>,
+        predicted_row: u8,
+        predicted_col: u8,
+    ) acquires MinesMachine {
+        select_gem(mines_machine_obj, predicted_row, predicted_col);
     }
 }
