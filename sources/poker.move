@@ -13,7 +13,8 @@
 /// Flush: 5144
 /// Straight Flush: 40
 /// Royal Flush: 4
-/// None: 1302540 - 9 possible categories
+/// None: 1302540
+/// 10 possible categories - odds baked into the game
 
 module aptosino::poker {
 
