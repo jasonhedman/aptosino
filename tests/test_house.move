@@ -1,7 +1,6 @@
 #[test_only]
 module aptosino::test_house {
     use std::signer;
-    use aptos_std::debug;
 
     use aptos_framework::aptos_coin;
     use aptos_framework::aptos_coin::AptosCoin;
@@ -335,7 +334,6 @@ module aptosino::test_house {
         );
 
         house::withdraw_fees(aptosino);
-        debug::print(&coin::balance<AptosCoin>(signer::address_of(aptosino)));
         assert!(coin::balance<AptosCoin>(signer::address_of(aptosino)) == fee, 0);
     }
 }

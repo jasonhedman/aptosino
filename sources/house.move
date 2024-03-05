@@ -1,7 +1,7 @@
 module aptosino::house {
 
     use std::signer;
-    
+
     use aptos_framework::account::{Self, SignerCapability};
     use aptos_framework::aptos_coin::AptosCoin;
     use aptos_framework::coin;
