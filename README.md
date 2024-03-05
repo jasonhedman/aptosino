@@ -1,5 +1,7 @@
 # Aptosino
 
+![Aptosino](https://github.com/jasonhedman/diagram.png?raw=true)
+
 Welcome to Aptosino, a decentralized platform for provably-fair gaming built on the Aptos blockchain. By leveraging Aptos' novel `randomness` module, we offer a transparent and secure casino experience where players can trust the integrity of every game outcome. Players can enjoy a wide range of classic casino games, knowing that the odds are truly in their favor.
 
 ## Architecture
