@@ -88,50 +88,48 @@ module aptosino::roulette {
         assert_bets_are_valid(&bet_amounts, &predicted_outcomes);
 
         let total_bet_amount = 0;
-        let total_slot_predictions = 0;
-        let i = 0;
-        while (i < vector::length(&bet_amounts)) {
-            let outcomes = vector::borrow(&predicted_outcomes, i);
-            assert_predicted_outcome_is_valid(outcomes);
-            total_slot_predictions = total_slot_predictions + vector::length(outcomes);
-
-            total_bet_amount = total_bet_amount + *vector::borrow(&bet_amounts, i);
-            
-            i = i + 1;
-        };
+        vector::for_each(bet_amounts, |amount| {
+            total_bet_amount = total_bet_amount + amount;
+        });
 
         let player_address = signer::address_of(player);
         assert_player_has_enough_balance(player_address, total_bet_amount);
 
-        let bet_lock = house::acquire_bet_lock(
-            player_address,
-            coin::withdraw(player, total_bet_amount),
-            (NUM_OUTCOMES as u64) * vector::length(&bet_amounts),
-            total_slot_predictions,
-            RouletteGame {}
-        );
+        let player_balance_before = coin::balance<AptosCoin>(player_address);
         
-        let total_payout = 0;
-        i = 0;
-        while(i < vector::length(&bet_amounts)) {
-            let outcomes = vector::borrow(&predicted_outcomes, i);
-            let payout = if(vector::any(outcomes, |outcome| { *outcome == result })) {
-                get_payout(*vector::borrow(&bet_amounts, i), *outcomes)
+        let i = 0;
+        while (i < vector::length(&bet_amounts)) {
+            let predicted_outcome = vector::borrow(&predicted_outcomes, i);
+            assert_predicted_outcome_is_valid(predicted_outcome);
+            let payout_numerator = if(vector::contains(predicted_outcome, &result)) {
+                (NUM_OUTCOMES as u64)
             } else {
                 0
             };
-            total_payout = total_payout + payout;
+            house::pay_out(
+                player_address,
+                coin::withdraw(player, *vector::borrow(&bet_amounts, i)),
+                payout_numerator,
+                vector::length(predicted_outcome),
+                RouletteGame {}
+            );
             i = i + 1;
         };
-
-        house::release_bet_lock(bet_lock, total_payout);
-
+        
+        let player_balance_after = coin::balance<AptosCoin>(player_address);
+        
+        let payout = if(player_balance_after > player_balance_before) {
+            player_balance_after - player_balance_before
+        } else {
+            0
+        };
+        
         event::emit(SpinWheelEvent {
             player_address: signer::address_of(player),
             bet_amounts,
             predicted_outcomes,
             result,
-            payout: total_payout,
+            payout,
         });
     }
     

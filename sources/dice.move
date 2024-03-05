@@ -81,21 +81,26 @@ module aptosino::dice {
         assert_player_has_enough_balance(player_address, bet_amount);
         assert_bet_is_valid(max_outcome, predicted_outcome);
         
-        let bet_lock = house::acquire_bet_lock(
-            player_address,
-            coin::withdraw(player, bet_amount),
-            max_outcome,
-            predicted_outcome,
-            DiceGame {}
-        );
-        
-        let payout = if (result < predicted_outcome) {
-            house::get_max_payout(&bet_lock)
+        let multiplier_numerator = if (result < predicted_outcome) {
+            max_outcome
         } else {
             0
         };
-
-        house::release_bet_lock(bet_lock, payout);
+        
+        let player_balance_before = coin::balance<AptosCoin>(player_address);
+        house::pay_out(
+            player_address, 
+            coin::withdraw(player, bet_amount), 
+            multiplier_numerator, 
+            predicted_outcome, 
+            DiceGame {}
+        );
+        let player_balance_after = coin::balance<AptosCoin>(player_address);
+        let payout = if (player_balance_after > player_balance_before) {
+            player_balance_after - player_balance_before
+        } else {
+            0
+        };
         
         event::emit(RollDiceEvent {
             player_address: signer::address_of(player),
