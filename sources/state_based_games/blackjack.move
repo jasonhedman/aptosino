@@ -105,18 +105,14 @@ module aptosino::blackjack {
     /// * player: the player signer
     /// * blackjack_hand_obj: the blackjack hand object
     public entry fun hit(player: &signer) acquires BlackjackHand {
-        let hand_address = get_player_hand_address(signer::address_of(player));
-        let blackjack_hand_obj = object::address_to_object<BlackjackHand>(hand_address);
-        hit_impl(blackjack_hand_obj, deal_card());
+        hit_impl(get_player_hand(signer::address_of(player)), deal_card());
     }
 
     /// Stands the player's hand
     /// * player: the player signer
     /// * blackjack_hand_obj: the blackjack hand object
     public entry fun stand(player: &signer) acquires BlackjackHand {
-        let hand_address = get_player_hand_address(signer::address_of(player));
-        let blackjack_hand_obj = object::address_to_object<BlackjackHand>(hand_address);
-        resolve_game(blackjack_hand_obj);
+        resolve_game(get_player_hand(signer::address_of(player)));
     }
     
     // private implementation functions
@@ -251,10 +247,10 @@ module aptosino::blackjack {
     // getters
     
     #[view]
-    /// Gets the address of a player's hand
+    /// Gets the player hand object
     /// * player_address: the address of the player
-    public fun get_player_hand_address(player_address: address): address {
-        state_based_game::get_player_game_address<BlackjackGame>(player_address)
+    public fun get_player_hand(player_address: address): Object<BlackjackHand> {
+        state_based_game::get_game_object<BlackjackGame, BlackjackHand>(player_address)
     }
     
     #[view]

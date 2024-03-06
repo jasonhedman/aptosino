@@ -5,7 +5,7 @@ module aptosino::state_based_game {
     use aptos_std::smart_table::{Self, SmartTable};
     use aptos_std::type_info;
     
-    use aptos_framework::object::{Self, DeleteRef, ConstructorRef};
+    use aptos_framework::object::{Self, DeleteRef, ConstructorRef, Object};
     use aptosino::game;
 
     use aptosino::game::Game;
@@ -151,6 +151,16 @@ module aptosino::state_based_game {
         let game_mapping = borrow_global<GameMapping<GameType>>(game_struct_address);
         game::get_bet_amount(&smart_table::borrow(&game_mapping.mapping, player).game)
     }
+    
+    #[view]
+    /// Returns the game object for a given player and game type
+    /// * player_address: the address of the player
+    public fun get_game_object<GameType: drop, Game: key>(player_address: address): Object<Game> acquires GameMapping {
+        assert_game_initialized<GameType>();
+        assert_player_in_game<GameType>(player_address);
+        object::address_to_object<Game>(get_player_game_address<GameType>(player_address))
+    }
+    
     
     // asserts
     
