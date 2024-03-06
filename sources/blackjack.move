@@ -3,13 +3,12 @@ module aptosino::blackjack {
     use std::signer;
     use std::vector;
 
-    use aptos_framework::aptos_coin::AptosCoin;
-    use aptos_framework::coin::{Self, Coin};
     use aptos_framework::event;
-    use aptos_framework::object::{Self, DeleteRef, Object};
+    use aptos_framework::object::{Self, Object};
     use aptos_framework::randomness;
     
     use aptosino::house;
+    use aptosino::state_based_game;
 
     // constants
     
@@ -17,19 +16,13 @@ module aptosino::blackjack {
     const NUM_CARD_SUITS: u8 = 4;
     
     // error codes
-
-    /// Player does not have enough balance to bet
-    const EPlayerInsufficientBalance: u64 = 101;
-    /// The predicted outcome is 0 or greater than or equal to the maximum outcome
-    const ESignerIsNotPlayer: u64 = 102;
+    
     /// The resolve is not valid
-    const EResolveNotValid: u64 = 103;
+    const EResolveNotValid: u64 = 104;
     
     // game type
     
     struct BlackjackGame has drop {}
-    
-    // structs
     
     /// A blackjack hand
     struct BlackjackHand has key {
@@ -39,10 +32,6 @@ module aptosino::blackjack {
         player_cards: vector<vector<u8>>,
         /// The dealer's cards
         dealer_cards: vector<vector<u8>>,
-        /// The delete reference for after the game is resolved
-        delete_ref: DeleteRef,
-        /// The coins bet on the hand
-        bet: Coin<AptosCoin>
     }
     
     // events
@@ -84,27 +73,29 @@ module aptosino::blackjack {
         player_cards: vector<vector<u8>>,
         /// The dealer's cards
         dealer_cards: vector<vector<u8>>,
-        /// The amount won
-        amount_won: u64
     }
     
     // admin functions
     
+    /// Initializes the game mapping
+    /// * creator: the admin signer
+    public entry fun init(creator: &signer) {
+        state_based_game::init(creator, BlackjackGame {});
+    }
+    
     /// Approves the game to use the house
     /// * admin: the admin signer
     public entry fun approve_game(admin: &signer) {
-        house::approve_game(admin, BlackjackGame {})
+        house::approve_game(admin, BlackjackGame {});
     }
     
     /// Creates an instance of a blackjack hand
     /// * player: the player signer
     /// * bet_amount: the amount to bet
     public entry fun start_game(player: &signer, bet_amount: u64) acquires BlackjackHand {
-        let player_address = signer::address_of(player);
-        assert_player_has_enough_balance(player_address, bet_amount);
         start_game_impl(
-            player_address, 
-            coin::withdraw<AptosCoin>(player, bet_amount),
+            player,
+            bet_amount,
             vector[deal_card(), deal_card()],
             vector[deal_card()]
         );
@@ -113,20 +104,18 @@ module aptosino::blackjack {
     /// Hits the player's hand
     /// * player: the player signer
     /// * blackjack_hand_obj: the blackjack hand object
-    public entry fun hit(player: &signer, blackjack_hand_obj: Object<BlackjackHand>) acquires BlackjackHand {
-        let hand_address = object::object_address(&blackjack_hand_obj);
-        let blackjack_hand = borrow_global_mut<BlackjackHand>(hand_address);
-        assert_signer_is_player(player, blackjack_hand);
+    public entry fun hit(player: &signer) acquires BlackjackHand {
+        let hand_address = get_player_hand_address(signer::address_of(player));
+        let blackjack_hand_obj = object::address_to_object<BlackjackHand>(hand_address);
         hit_impl(blackjack_hand_obj, deal_card());
     }
 
     /// Stands the player's hand
     /// * player: the player signer
     /// * blackjack_hand_obj: the blackjack hand object
-    public entry fun stand(player: &signer, blackjack_hand_obj: Object<BlackjackHand>) acquires BlackjackHand {
-        let hand_address = object::object_address(&blackjack_hand_obj);
-        let blackjack_hand = borrow_global<BlackjackHand>(hand_address);
-        assert_signer_is_player(player, blackjack_hand);
+    public entry fun stand(player: &signer) acquires BlackjackHand {
+        let hand_address = get_player_hand_address(signer::address_of(player));
+        let blackjack_hand_obj = object::address_to_object<BlackjackHand>(hand_address);
         resolve_game(blackjack_hand_obj);
     }
     
@@ -136,33 +125,27 @@ module aptosino::blackjack {
     /// * player: the player signer
     /// * bet_amount: the amount to bet
     fun start_game_impl(
-        player_address: address, 
-        bet: Coin<AptosCoin>, 
+        player: &signer, 
+        bet_amount: u64, 
         player_cards: vector<vector<u8>>,
         dealer_cards: vector<vector<u8>>
     ): Object<BlackjackHand> acquires BlackjackHand {
-        let bet_amount = coin::value(&bet);
-
-        let constructor_ref = object::create_object(house::get_house_address());
+        let player_address = signer::address_of(player);
+        
+        let constructor_ref = state_based_game::create_game(
+            player,
+            bet_amount,
+            BlackjackGame {}
+        );
 
         move_to(&object::generate_signer(&constructor_ref), BlackjackHand {
             player_address,
             player_cards,
             dealer_cards,
-            delete_ref: object::generate_delete_ref(&constructor_ref),
-            bet
         });
 
-        event::emit(HandCreated {
-            player_address,
-            hand_address: object::object_address(&object::object_from_constructor_ref<BlackjackHand>(&constructor_ref)),
-            bet_amount,
-            player_cards,
-            dealer_cards
-        });
-        
         let blackjack_hand_obj = object::object_from_constructor_ref<BlackjackHand>(&constructor_ref);
-
+        let hand_address = object::object_address(&blackjack_hand_obj);
         // check for blackjack
         if(calculate_hand_value(get_player_cards(blackjack_hand_obj)) == 21) {
             // this is necessary for testing purposes, but in practice will always execute
@@ -171,6 +154,14 @@ module aptosino::blackjack {
             };
             resolve_game(blackjack_hand_obj);
         };
+
+        event::emit(HandCreated {
+            player_address,
+            hand_address,
+            bet_amount,
+            player_cards,
+            dealer_cards
+        });
 
         blackjack_hand_obj
     }
@@ -197,18 +188,19 @@ module aptosino::blackjack {
     fun resolve_game(blackjack_hand_obj: Object<BlackjackHand>) acquires BlackjackHand {
         let hand_address = object::object_address(&blackjack_hand_obj);
         assert_resolve_is_at_valid(borrow_global<BlackjackHand>(hand_address));
+        
+        // dealer hits until 17 or higher
         while(calculate_hand_value(borrow_global<BlackjackHand>(hand_address).dealer_cards) < 17
             && calculate_hand_value(borrow_global<BlackjackHand>(hand_address).dealer_cards) != 0) {
             deal_to_house(blackjack_hand_obj, deal_card());
         };
+        
         let BlackjackHand {
             player_address,
             player_cards,
             dealer_cards,
-            bet,
-            delete_ref
         } = move_from<BlackjackHand>(hand_address);
-        let player_balance_before = coin::balance<AptosCoin>(player_address);
+        
         let player_value = calculate_hand_value(player_cards);
         let dealer_value = calculate_hand_value(dealer_cards);
         let (payout_numerator, payout_denominator) = if(player_value == 0) {
@@ -230,22 +222,14 @@ module aptosino::blackjack {
         } else {
             (0, 1) // dealer wins
         };
-        house::pay_out(player_address, bet, payout_numerator, payout_denominator, BlackjackGame {});
-        object::delete(delete_ref);
         
-        let player_balance_after = coin::balance<AptosCoin>(player_address);
-        let amount_won = if(player_balance_after > player_balance_before) {
-            player_balance_after - player_balance_before
-        } else {
-            0
-        };
+        state_based_game::resolve_game(player_address, payout_numerator, payout_denominator, BlackjackGame {});
         
         event::emit(GameResolved {
             player_address,
             hand_address,
             player_cards,
             dealer_cards,
-            amount_won
         });
     }
     
@@ -265,6 +249,13 @@ module aptosino::blackjack {
     }
     
     // getters
+    
+    #[view]
+    /// Gets the address of a player's hand
+    /// * player_address: the address of the player
+    public fun get_player_hand_address(player_address: address): address {
+        state_based_game::get_player_game_address<BlackjackGame>(player_address)
+    }
     
     #[view]
     /// Gets the player of a blackjack hand
@@ -290,8 +281,8 @@ module aptosino::blackjack {
     #[view]
     /// Gets the bet amount
     /// * blackjack_hand_obj: a reference to the blackjack hand object
-    public fun get_bet_amount(blackjack_hand_obj: Object<BlackjackHand>): u64 acquires BlackjackHand {
-        coin::value(&borrow_global<BlackjackHand>(object::object_address(&blackjack_hand_obj)).bet)
+    public fun get_bet_amount(player_address: address): u64 {
+        state_based_game::get_player_bet_amount<BlackjackGame>(player_address)
     }
     
     /// Calculates the value of a vector of cards
@@ -335,20 +326,6 @@ module aptosino::blackjack {
     }
     
     // assert statements
-
-    /// Asserts that the player has enough balance to bet the given amount
-    /// * player_address: the address of the player
-    /// * amount: the amount to bet
-    fun assert_player_has_enough_balance(player_address: address, amount: u64) {
-        assert!(coin::balance<AptosCoin>(player_address) >= amount, EPlayerInsufficientBalance);
-    }
-    
-    /// Asserts that the given signer is the player of the given blackjack hand
-    /// * player: the signer to assert
-    /// * blackjack_hand: the blackjack hand to assert
-    fun assert_signer_is_player(player: &signer, blackjack_hand: &BlackjackHand) {
-        assert!(signer::address_of(player) == blackjack_hand.player_address, ESignerIsNotPlayer);
-    }
     
     /// Asserts that the dealer is at 17 or higher
     /// * blackjack_hand: the blackjack hand to assert
@@ -365,12 +342,12 @@ module aptosino::blackjack {
     
     #[test_only]
     public fun test_start_game(
-        player_address: address, 
-        bet: Coin<AptosCoin>,
+        player: &signer, 
+        bet_amount: u64,
         player_cards: vector<vector<u8>>,
         dealer_cards: vector<vector<u8>>
     ): Object<BlackjackHand> acquires BlackjackHand {
-        start_game_impl(player_address, bet, player_cards, dealer_cards)
+        start_game_impl(player, bet_amount, player_cards, dealer_cards)
     }
     
     #[test_only]
