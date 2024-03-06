@@ -84,7 +84,6 @@ module aptosino::roulette {
         predicted_outcomes: vector<vector<u8>>,
         result: u8
     ) {
-        
         assert_bets_are_valid(&bet_amounts, &predicted_outcomes);
 
         let total_bet_amount = 0;
@@ -101,8 +100,7 @@ module aptosino::roulette {
         while (i < vector::length(&bet_amounts)) {
             let predicted_outcome = vector::borrow(&predicted_outcomes, i);
             assert_predicted_outcome_is_valid(predicted_outcome);
-            let payout_numerator = if(vector::contains(predicted_outcome, &result)) {
-                (NUM_OUTCOMES as u64)
+            let payout_numerator = if(vector::contains(predicted_outcome, &result)) { (NUM_OUTCOMES as u64)
             } else {
                 0
             };
