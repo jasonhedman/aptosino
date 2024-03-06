@@ -5,11 +5,10 @@ module aptosino::state_based_game {
     use aptos_std::smart_table::{Self, SmartTable};
     use aptos_std::type_info;
     
-    use aptos_framework::aptos_coin::AptosCoin;
-    use aptos_framework::coin::{Self, Coin};
-    use aptos_framework::event;
     use aptos_framework::object::{Self, DeleteRef, ConstructorRef};
-    
+    use aptosino::game;
+
+    use aptosino::game::Game;
     use aptosino::house;
 
     // errors
@@ -20,23 +19,19 @@ module aptosino::state_based_game {
     const EGameAlreadyInitialized: u64 = 102;
     /// The game is not initialized
     const EGameNotInitialized: u64 = 103;
-    /// The game is not approved on the house
-    const EGameNotApproved: u64 = 104;
     /// The player is not in a game
-    const EPlayerNotInGame: u64 = 105;
+    const EPlayerNotInGame: u64 = 104;
     /// The player is already in a game
-    const EPlayerAlreadyInGame: u64 = 106;
-    /// Player does not have enough balance to bet
-    const EPlayerInsufficientBalance: u64 = 107;
+    const EPlayerAlreadyInGame: u64 = 105;
     
     // structs
     
     /// A game object
-    struct Game has store {
-        /// The address of the game
+    struct GameObject has store {
+        /// The game object
+        game: Game,
+        /// The game object address
         game_address: address,
-        /// The bet
-        bet: Coin<AptosCoin>,
         /// The delete reference for after the game is resolved
         delete_ref: DeleteRef,
     }
@@ -44,20 +39,7 @@ module aptosino::state_based_game {
     /// A mapping from player address to game object address
     struct GameMapping<phantom GameType: drop> has key {
         /// The mapping from player address to game object address
-        mapping: SmartTable<address, Game>
-    }
-    
-    // events
-    
-    #[event]
-    /// emitted when a game is resolved
-    struct GameResolved has drop, store {
-        /// The address of the player
-        player_address: address,
-        /// The address of the game
-        game_address: address,
-        /// The payout amount
-        payout: u64
+        mapping: SmartTable<address, GameObject>
     }
     
     /// Initializes a new state-based game for the given game type
@@ -66,7 +48,6 @@ module aptosino::state_based_game {
     public fun init<GameType: drop>(creator: &signer, _witness: GameType) {
         assert_caller_is_creator<GameType>(creator);
         assert_game_not_initialized<GameType>();
-        assert_game_is_approved<GameType>();
         move_to(creator, GameMapping<GameType> {
             mapping: smart_table::new()
         })
@@ -87,18 +68,18 @@ module aptosino::state_based_game {
     ): ConstructorRef
     acquires GameMapping {
         assert_game_initialized<GameType>();
-        assert_game_is_approved<GameType>();
         let player_address = signer::address_of(player);
         assert_player_not_in_game<GameType>(player_address);
-        assert_player_has_enough_balance(player_address, bet_amount);
+        
+        let game = game::create_game(player, bet_amount, _witness);
         
         let constructor_ref = object::create_object(house::get_house_address());
-        
         let game_struct_address = type_info::account_address(&type_info::type_of<GameType>());
+        
         let game_mapping = borrow_global_mut<GameMapping<GameType>>(game_struct_address);
-        smart_table::add(&mut game_mapping.mapping, player_address, Game {
+        smart_table::add(&mut game_mapping.mapping, player_address, GameObject {
+            game,
             game_address: object::address_from_constructor_ref(&constructor_ref),
-            bet: coin::withdraw(player, bet_amount),
             delete_ref: object::generate_delete_ref(&constructor_ref)
         });
         
@@ -120,30 +101,15 @@ module aptosino::state_based_game {
         assert_player_in_game<GameType>(player_address);
         let game_struct_address = type_info::account_address(&type_info::type_of<GameType>());
         let game_mapping = borrow_global_mut<GameMapping<GameType>>(game_struct_address);
-        let Game { 
-            game_address, 
-            bet,
+        let GameObject { 
+            game,
+            game_address: _,
             delete_ref
         } = smart_table::remove(&mut game_mapping.mapping, player_address);
         
-        let player_balance_before = coin::balance<AptosCoin>(player_address);
-        
-        house::pay_out(player_address, bet, payout_numerator, payout_denominator, witness);
-        
-        let player_balance_after = coin::balance<AptosCoin>(player_address);
-        let payout = if(player_balance_after > player_balance_before) {
-            player_balance_after - player_balance_before
-        } else {
-            0
-        };
+        game::resolve_game(game, payout_numerator, payout_denominator, witness);
         
         object::delete(delete_ref);
-        
-        event::emit(GameResolved {
-            player_address,
-            game_address,
-            payout
-        });
     }
     
     // getters
@@ -183,7 +149,7 @@ module aptosino::state_based_game {
         assert_player_in_game<GameType>(player);
         let game_struct_address = type_info::account_address(&type_info::type_of<GameType>());
         let game_mapping = borrow_global<GameMapping<GameType>>(game_struct_address);
-        coin::value(&smart_table::borrow(&game_mapping.mapping, player).bet)
+        game::get_bet_amount(&smart_table::borrow(&game_mapping.mapping, player).game)
     }
     
     // asserts
@@ -205,11 +171,6 @@ module aptosino::state_based_game {
         assert!(!get_is_game_initialized<GameType>(), EGameAlreadyInitialized);
     }
     
-    /// Asserts that the game is approved on the house
-    fun assert_game_is_approved<GameType: drop>() {
-        assert!(house::is_game_approved<GameType>(), EGameNotApproved);
-    }
-    
     /// Asserts that the player is in a game
     /// * player: the address of the player
     fun assert_player_in_game<GameType: drop>(player: address) acquires GameMapping {
@@ -222,10 +183,5 @@ module aptosino::state_based_game {
         assert!(!get_is_player_in_game<GameType>(player), EPlayerAlreadyInGame);
     }
 
-    /// Asserts that the player has enough balance to bet the given amount
-    /// * player_address: the address of the player
-    /// * amount: the amount to bet
-    fun assert_player_has_enough_balance(player_address: address, amount: u64) {
-        assert!(coin::balance<AptosCoin>(player_address) >= amount, EPlayerInsufficientBalance);
-    }
+    
 }

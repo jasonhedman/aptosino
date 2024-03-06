@@ -67,21 +67,6 @@ module aptosino::test_state_based_game {
         state_based_game::init(aptosino, TestGame {});
     }
     
-    #[test(framework=@aptos_framework, aptosino=@aptosino)]
-    #[expected_failure(abort_code=state_based_game::EGameNotApproved)]
-    fun test_init_game_not_approved(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(
-            framework,
-            aptosino,
-            INITIAL_DEPOSIT,
-            MIN_BET,
-            MAX_BET,
-            MAX_MULTIPLIER,
-            FEE_BPS
-        );
-        state_based_game::init(aptosino, TestGame {});
-    }
-    
     fun setup_tests(framework: &signer, aptosino: &signer, player: &signer) {
         test_helpers::setup_house_with_player(
             framework, 
@@ -125,48 +110,11 @@ module aptosino::test_state_based_game {
     }
     
     #[test(framework=@aptos_framework, aptosino=@aptosino, player=@0x101)]
-    #[expected_failure(abort_code=state_based_game::EGameNotApproved)]
-    fun test_create_game_not_approved(framework: &signer, aptosino: &signer, player: &signer) {
-        test_helpers::setup_house_with_player(
-            framework,
-            aptosino,
-            player,
-            INITIAL_DEPOSIT,
-            MIN_BET,
-            MAX_BET,
-            MAX_MULTIPLIER,
-            FEE_BPS
-        );
-        house::approve_game(aptosino, TestGame {});
-        state_based_game::init(aptosino, TestGame {});
-        house::revoke_game<TestGame>(aptosino);
-        state_based_game::create_game(player, BET_AMOUNT, TestGame {});
-    }
-    
-    #[test(framework=@aptos_framework, aptosino=@aptosino, player=@0x101)]
     #[expected_failure(abort_code=state_based_game::EPlayerAlreadyInGame)]
     fun test_create_game_twice(framework: &signer, aptosino: &signer, player: &signer) {
         setup_tests(framework, aptosino, player);
         state_based_game::create_game(player, BET_AMOUNT, TestGame {});
         state_based_game::create_game(player, BET_AMOUNT, TestGame {});
-    }
-    
-    #[test(framework=@aptos_framework, aptosino=@aptosino, player=@0x101)]
-    #[expected_failure(abort_code=state_based_game::EPlayerInsufficientBalance)]
-    fun test_add_player_insufficient_balance(framework: &signer, aptosino: &signer, player: &signer) {
-        test_helpers::setup_house_with_player(
-            framework,
-            aptosino,
-            player,
-            INITIAL_DEPOSIT,
-            MIN_BET,
-            MAX_BET,
-            MAX_MULTIPLIER,
-            FEE_BPS
-        );
-        house::approve_game(aptosino, TestGame {});
-        state_based_game::init(aptosino, TestGame {});
-        state_based_game::create_game(player, MAX_BET + 2, TestGame {});
     }
 
     #[test(framework=@aptos_framework, aptosino=@aptosino, player=@0x101)]
