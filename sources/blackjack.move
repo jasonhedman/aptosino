@@ -8,7 +8,8 @@ module aptosino::blackjack {
     use aptos_framework::event;
     use aptos_framework::object::{Self, DeleteRef, Object};
     use aptos_framework::randomness;
-    
+    use aptosino::state_based_game;
+
     use aptosino::house;
 
     // constants
@@ -20,16 +21,16 @@ module aptosino::blackjack {
 
     /// Player does not have enough balance to bet
     const EPlayerInsufficientBalance: u64 = 101;
-    /// The predicted outcome is 0 or greater than or equal to the maximum outcome
-    const ESignerIsNotPlayer: u64 = 102;
+    /// The signer is already a player in a hand
+    const ESignerIsAlreadyPlayer: u64 = 102;
+    /// The signer is not a player in a hand
+    const ESignerIsNotPlayer: u64 = 103;
     /// The resolve is not valid
-    const EResolveNotValid: u64 = 103;
+    const EResolveNotValid: u64 = 104;
     
     // game type
     
     struct BlackjackGame has drop {}
-    
-    // structs
     
     /// A blackjack hand
     struct BlackjackHand has key {
@@ -90,10 +91,16 @@ module aptosino::blackjack {
     
     // admin functions
     
+    /// Initializes the game mapping
+    /// * creator: the admin signer
+    public entry fun init(creator: &signer) {
+        state_based_game::init(creator, BlackjackGame {});
+    }
+    
     /// Approves the game to use the house
     /// * admin: the admin signer
     public entry fun approve_game(admin: &signer) {
-        house::approve_game(admin, BlackjackGame {})
+        house::approve_game(admin, BlackjackGame {});
     }
     
     /// Creates an instance of a blackjack hand
@@ -113,20 +120,18 @@ module aptosino::blackjack {
     /// Hits the player's hand
     /// * player: the player signer
     /// * blackjack_hand_obj: the blackjack hand object
-    public entry fun hit(player: &signer, blackjack_hand_obj: Object<BlackjackHand>) acquires BlackjackHand {
-        let hand_address = object::object_address(&blackjack_hand_obj);
-        let blackjack_hand = borrow_global_mut<BlackjackHand>(hand_address);
-        assert_signer_is_player(player, blackjack_hand);
+    public entry fun hit(player: &signer) acquires BlackjackHand {
+        let hand_address = get_player_hand_address(signer::address_of(player));
+        let blackjack_hand_obj = object::address_to_object<BlackjackHand>(hand_address);
         hit_impl(blackjack_hand_obj, deal_card());
     }
 
     /// Stands the player's hand
     /// * player: the player signer
     /// * blackjack_hand_obj: the blackjack hand object
-    public entry fun stand(player: &signer, blackjack_hand_obj: Object<BlackjackHand>) acquires BlackjackHand {
-        let hand_address = object::object_address(&blackjack_hand_obj);
-        let blackjack_hand = borrow_global<BlackjackHand>(hand_address);
-        assert_signer_is_player(player, blackjack_hand);
+    public entry fun stand(player: &signer) acquires BlackjackHand {
+        let hand_address = get_player_hand_address(signer::address_of(player));
+        let blackjack_hand_obj = object::address_to_object<BlackjackHand>(hand_address);
         resolve_game(blackjack_hand_obj);
     }
     
@@ -141,6 +146,8 @@ module aptosino::blackjack {
         player_cards: vector<vector<u8>>,
         dealer_cards: vector<vector<u8>>
     ): Object<BlackjackHand> acquires BlackjackHand {
+        assert_signer_is_not_player(player_address);
+        
         let bet_amount = coin::value(&bet);
 
         let constructor_ref = object::create_object(house::get_house_address());
@@ -162,6 +169,11 @@ module aptosino::blackjack {
         });
         
         let blackjack_hand_obj = object::object_from_constructor_ref<BlackjackHand>(&constructor_ref);
+        state_based_game::add_player_game(
+            player_address,
+            object::object_address(&blackjack_hand_obj),
+            BlackjackGame {}
+        );
 
         // check for blackjack
         if(calculate_hand_value(get_player_cards(blackjack_hand_obj)) == 21) {
@@ -170,6 +182,8 @@ module aptosino::blackjack {
                 deal_to_house(blackjack_hand_obj, deal_card());
             };
             resolve_game(blackjack_hand_obj);
+        } else {
+            
         };
 
         blackjack_hand_obj
@@ -233,6 +247,8 @@ module aptosino::blackjack {
         house::pay_out(player_address, bet, payout_numerator, payout_denominator, BlackjackGame {});
         object::delete(delete_ref);
         
+        state_based_game::remove_player_game(player_address, BlackjackGame {});
+        
         let player_balance_after = coin::balance<AptosCoin>(player_address);
         let amount_won = if(player_balance_after > player_balance_before) {
             player_balance_after - player_balance_before
@@ -265,6 +281,14 @@ module aptosino::blackjack {
     }
     
     // getters
+    
+    #[view]
+    /// Gets the address of a player's hand
+    /// * player_address: the address of the player
+    public fun get_player_hand_address(player_address: address): address {
+        assert_signer_is_player(player_address);
+        state_based_game::get_player_game_address<BlackjackGame>(player_address)
+    }
     
     #[view]
     /// Gets the player of a blackjack hand
@@ -342,12 +366,17 @@ module aptosino::blackjack {
     fun assert_player_has_enough_balance(player_address: address, amount: u64) {
         assert!(coin::balance<AptosCoin>(player_address) >= amount, EPlayerInsufficientBalance);
     }
+
+    /// Asserts that the given signer is not a player in a hand
+    /// * player_address: the address of the player
+    fun assert_signer_is_not_player(player_address: address) {
+        assert!(!state_based_game::get_is_player_in_game<BlackjackGame>(player_address), ESignerIsAlreadyPlayer);
+    }
     
-    /// Asserts that the given signer is the player of the given blackjack hand
-    /// * player: the signer to assert
-    /// * blackjack_hand: the blackjack hand to assert
-    fun assert_signer_is_player(player: &signer, blackjack_hand: &BlackjackHand) {
-        assert!(signer::address_of(player) == blackjack_hand.player_address, ESignerIsNotPlayer);
+    /// Asserts that the given signer is a player in a hand
+    /// * player_address: the address of the player
+    fun assert_signer_is_player(player_address: address) {
+        assert!(state_based_game::get_is_player_in_game<BlackjackGame>(player_address), ESignerIsNotPlayer);
     }
     
     /// Asserts that the dealer is at 17 or higher

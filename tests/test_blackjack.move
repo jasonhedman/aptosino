@@ -32,6 +32,7 @@ module aptosino::test_blackjack {
             FEE_BPS,
         );
         blackjack::approve_game(aptosino);
+        blackjack::init(aptosino);
     }
     
     #[test]
@@ -101,6 +102,25 @@ module aptosino::test_blackjack {
         assert!(vector::length(&blackjack::get_dealer_cards(blackjack_hand_obj)) == 1, 0);
         assert!(blackjack::get_bet_amount(blackjack_hand_obj) == BET_AMOUNT, 0);
         assert!(blackjack::get_player_address(blackjack_hand_obj) == player_address, 0);
+    }
+    
+    #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
+    #[expected_failure(abort_code=blackjack::ESignerIsAlreadyPlayer)]
+    fun test_start_game_already_playing(framework: &signer, aptosino: &signer, player: &signer) {
+        setup_blackjack(framework, aptosino, player);
+        let player_address = signer::address_of(player);
+        blackjack::test_start_game(
+            player_address, 
+            coin::withdraw<AptosCoin>(player, BET_AMOUNT),
+            vector[vector[1, 0], vector[2, 0]],
+            vector[vector[3, 0]],
+        );
+        blackjack::test_start_game(
+            player_address, 
+            coin::withdraw<AptosCoin>(player, BET_AMOUNT),
+            vector[vector[1, 0], vector[2, 0]],
+            vector[vector[3, 0]],
+        );
     }
     
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
@@ -356,7 +376,7 @@ module aptosino::test_blackjack {
             vector[vector[6, 0], vector[2, 0]],
             vector[vector[3, 0]],
         );
-        blackjack::hit(player, blackjack_hand_obj);
+        blackjack::hit(player);
 
         assert!(vector::length(&blackjack::get_player_cards(blackjack_hand_obj)) == 3, 0);
     }
@@ -365,13 +385,13 @@ module aptosino::test_blackjack {
     #[expected_failure(abort_code=blackjack::ESignerIsNotPlayer)]
     fun test_hit_not_player(framework: &signer, aptosino: &signer, player: &signer) {
         setup_blackjack(framework, aptosino, player);
-        let blackjack_hand_obj = blackjack::test_start_game(
+        blackjack::test_start_game(
             signer::address_of(player), 
             coin::withdraw<AptosCoin>(player, BET_AMOUNT),
             vector[vector[6, 0], vector[2, 0]],
             vector[vector[3, 0]],
         );
-        blackjack::hit(aptosino, blackjack_hand_obj);
+        blackjack::hit(aptosino);
     }
     
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
@@ -390,7 +410,7 @@ module aptosino::test_blackjack {
             vector[vector[7, 0]],
         );
         blackjack::test_deal_to_house(blackjack_hand_obj, vector[10, 0]);
-        blackjack::stand(player, blackjack_hand_obj);
+        blackjack::stand(player);
         
         assert!(coin::balance<AptosCoin>(player_address) == player_balance_before + BET_AMOUNT - fee, 0);
         assert!(house::get_house_balance() == house_balance_before - BET_AMOUNT + fee, 0);
@@ -400,12 +420,12 @@ module aptosino::test_blackjack {
     #[expected_failure(abort_code=blackjack::ESignerIsNotPlayer)]
     fun test_stand_not_player(framework: &signer, aptosino: &signer, player: &signer) {
         setup_blackjack(framework, aptosino, player);
-        let blackjack_hand_obj = blackjack::test_start_game(
+        blackjack::test_start_game(
             signer::address_of(player), 
             coin::withdraw<AptosCoin>(player, BET_AMOUNT),
             vector[vector[6, 0], vector[2, 0]],
             vector[vector[3, 0]],
         );
-        blackjack::stand(aptosino, blackjack_hand_obj);
+        blackjack::stand(aptosino);
     }
 }
