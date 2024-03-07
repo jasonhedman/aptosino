@@ -1,19 +1,21 @@
 module aptosino::game {
 
     use std::signer;
-    
+
     use aptos_framework::aptos_coin::AptosCoin;
-    use aptos_framework::coin;
-    use aptos_framework::coin::Coin;
+    use aptos_framework::coin::{Self, Coin};
     use aptos_framework::event;
+    
     use aptosino::house;
     
     // errors
     
     /// The game is not approved on the house
     const EGameNotApproved: u64 = 101;
+    /// The bet amount is zero
+    const EBetAmountIsZero: u64 = 102;
     /// Player does not have enough balance to bet
-    const EPlayerInsufficientBalance: u64 = 102;
+    const EPlayerInsufficientBalance: u64 = 103;
     
     // structs
 
@@ -36,9 +38,15 @@ module aptosino::game {
         payout: u64
     }
     
+    /// Creates a game struct with the player's bet
+    /// * player: the player's signer
+    /// * bet_amount: the amount to bet
+    /// * _witness: an instance of the GameType struct
     public fun create_game<GameType: drop>(player: &signer, bet_amount: u64, _witness: GameType): Game {
         assert_game_is_approved<GameType>();
+        assert_bet_amount_is_greater_than_zero(bet_amount);
         let player_address = signer::address_of(player);
+        
         assert_player_has_enough_balance(player_address, bet_amount);
         Game {
             player_address,
@@ -46,6 +54,11 @@ module aptosino::game {
         }
     }
     
+    /// Resolves a game and pays out the player
+    /// * game: the game struct
+    /// * payout_numerator: the payout numerator
+    /// * payout_denominator: the payout denominator
+    /// * witness: an instance of the GameType struct
     public fun resolve_game<GameType: drop>(
         game: Game, 
         payout_numerator: u64, 
@@ -93,6 +106,12 @@ module aptosino::game {
     /// Asserts that the game is approved on the house
     fun assert_game_is_approved<GameType: drop>() {
         assert!(house::is_game_approved<GameType>(), EGameNotApproved);
+    }
+    
+    /// Asserts that the bet amount is greater than zero
+    /// * amount: the amount to bet
+    fun assert_bet_amount_is_greater_than_zero(amount: u64) {
+        assert!(amount > 0, EBetAmountIsZero);
     }
 
     /// Asserts that the player has enough balance to bet the given amount

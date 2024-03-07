@@ -66,6 +66,15 @@ module aptosino::test_game {
     }
     
     #[test(framework=@aptos_framework, aptosino=@aptosino, player=@0x101)]
+    #[expected_failure(abort_code=game::EBetAmountIsZero)]
+    fun test_create_game_bet_amount_is_zero(framework: &signer, aptosino: &signer, player: &signer) {
+        setup_tests(framework, aptosino, player);
+        house::approve_game(aptosino, TestGame {});
+        let game = game::create_game(player, 0, TestGame {});
+        resolve_game(game, 2, 1, TestGame {})
+    }
+    
+    #[test(framework=@aptos_framework, aptosino=@aptosino, player=@0x101)]
     #[expected_failure(abort_code=game::EPlayerInsufficientBalance)]
     fun test_create_game_insufficient_balance(framework: &signer, aptosino: &signer, player: &signer) {
         setup_tests(framework, aptosino, player);
