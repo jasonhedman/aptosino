@@ -122,20 +122,6 @@ module aptosino::test_dice {
         assert!(house::get_accrued_fees() == fee, 0);
     }
 
-    #[test(framework=@aptos_framework, aptosino=@aptosino, player=@0x101)]
-    #[expected_failure(abort_code=dice::EPlayerInsufficientBalance)]
-    fun test_roll_insufficient_balance(framework: &signer, aptosino: &signer, player: &signer) {
-        roll_test(
-            framework,
-            aptosino,
-            player,
-            MAX_BET + 2,
-            100,
-            50,
-            0,
-        );
-    }
-
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
     #[expected_failure(abort_code= dice::EPredictedOutcomeInvalid)]
     fun test_roll_dice_prediction_greater_than_maximum(framework: &signer, aptosino: &signer, player: &signer) {

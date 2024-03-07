@@ -150,24 +150,11 @@ module aptosino::test_roulette {
             predicted_outcomes,
             bet_2_slots - 1
         );
-        let payout_2 = roulette::get_payout(BET_AMOUNT, *vector::borrow(&predicted_outcomes, 1));
+        let payout_2 = BET_AMOUNT * 3 - house::get_fee_amount(total_bet_amount);
         
         assert!(house_balance_change == payout_2 - total_bet_amount, 0);
         assert!(user_balance_change == payout_2 - total_bet_amount, 0);
         assert!(house::get_accrued_fees() == house::get_fee_amount(total_bet_amount), 0);
-    }
-
-    #[test(framework=@aptos_framework, aptosino=@aptosino, player=@0x101)]
-    #[expected_failure(abort_code=roulette::EPlayerInsufficientBalance)]
-    fun test_spin_wheel_insufficient_balance(framework: &signer, aptosino: &signer, player: &signer) {
-        spin_test(
-            framework,
-            aptosino,
-            player,
-            vector[MAX_BET + 2],
-            get_predicted_outcomes(vector[6]),
-            0
-        );
     }
     
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]

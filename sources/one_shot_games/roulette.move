@@ -2,11 +2,10 @@ module aptosino::roulette {
 
     use std::signer;
     use std::vector;
-
-    use aptos_framework::coin;
-    use aptos_framework::aptos_coin::AptosCoin;
+    
     use aptos_framework::event;
     use aptos_framework::randomness;
+    use aptosino::game;
 
     use aptosino::house;
 
@@ -15,19 +14,17 @@ module aptosino::roulette {
     const NUM_OUTCOMES: u8 = 36;
 
     // error codes
-
-    /// Player does not have enough balance to bet
-    const EPlayerInsufficientBalance: u64 = 101;
+    
     /// The number of bets does not match the number of predicted outcomes
-    const ENumberOfBetsDoesNotMatchNumberOfPredictedOutcomes: u64 = 102;
+    const ENumberOfBetsDoesNotMatchNumberOfPredictedOutcomes: u64 = 101;
     /// The number of bets is zero
-    const ENumberOfBetsIsZero: u64 = 103;
+    const ENumberOfBetsIsZero: u64 = 102;
     /// The bet amount is zero
-    const EBetAmountIsZero: u64 = 104;
+    const EBetAmountIsZero: u64 = 103;
     /// The number of predicted outcomes is zero for a bet
-    const ENumberOfPredictedOutcomesIsZero: u64 = 105;
+    const ENumberOfPredictedOutcomesIsZero: u64 = 104;
     /// A predicted outcome is out of range
-    const EPredictedOutcomeOutOfRange: u64 = 106;
+    const EPredictedOutcomeOutOfRange: u64 = 105;
     
     // game type
     
@@ -46,8 +43,6 @@ module aptosino::roulette {
         predicted_outcomes: vector<vector<u8>>,
         /// The result of the spin
         result: u8,
-        /// The payout to the player
-        payout: u64,
     }
     
     // admin functions
@@ -91,43 +86,35 @@ module aptosino::roulette {
             total_bet_amount = total_bet_amount + amount;
         });
 
-        let player_address = signer::address_of(player);
-        assert_player_has_enough_balance(player_address, total_bet_amount);
-
-        let player_balance_before = coin::balance<AptosCoin>(player_address);
+        let game = game::create_game(player, total_bet_amount, RouletteGame {});
+        
+        let payout_numerator = 0;
+        let payout_denominator = 0;
         
         let i = 0;
         while (i < vector::length(&bet_amounts)) {
             let predicted_outcome = vector::borrow(&predicted_outcomes, i);
             assert_predicted_outcome_is_valid(predicted_outcome);
-            let payout_numerator = if(vector::contains(predicted_outcome, &result)) { (NUM_OUTCOMES as u64)
-            } else {
-                0
+            if(vector::contains(predicted_outcome, &result)) {
+                payout_numerator = payout_numerator + (NUM_OUTCOMES as u64) * *vector::borrow(&bet_amounts, i);
+                payout_denominator = payout_denominator + vector::length(predicted_outcome) * total_bet_amount;
             };
-            house::pay_out(
-                player_address,
-                coin::withdraw(player, *vector::borrow(&bet_amounts, i)),
-                payout_numerator,
-                vector::length(predicted_outcome),
-                RouletteGame {}
-            );
             i = i + 1;
         };
         
-        let player_balance_after = coin::balance<AptosCoin>(player_address);
         
-        let payout = if(player_balance_after > player_balance_before) {
-            player_balance_after - player_balance_before
-        } else {
-            0
-        };
+        game::resolve_game(
+            game, 
+            payout_numerator, 
+            if(payout_denominator > 0) { payout_denominator } else { 1 }, 
+            RouletteGame {}
+        );
         
         event::emit(SpinWheelEvent {
             player_address: signer::address_of(player),
             bet_amounts,
             predicted_outcomes,
             result,
-            payout,
         });
     }
     
@@ -146,13 +133,6 @@ module aptosino::roulette {
     }
 
     // assert statements
-
-    /// Asserts that the player has enough balance to bet the given amount
-    /// * player_address: the address of the player
-    /// * amount: the amount to bet
-    fun assert_player_has_enough_balance(player_address: address, amount: u64) {
-        assert!(coin::balance<AptosCoin>(player_address) >= amount, EPlayerInsufficientBalance);
-    }
 
     /// Asserts that the number of bets and predicted outcomes are equal in length, non-empty, and non-zero
     /// * multiplier: the multiplier of the bet

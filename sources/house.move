@@ -6,6 +6,8 @@ module aptosino::house {
     use aptos_framework::aptos_coin::AptosCoin;
     use aptos_framework::coin;
     use aptos_framework::coin::Coin;
+    
+    friend aptosino::game;
 
     // constants
 
@@ -99,7 +101,7 @@ module aptosino::house {
     /// * payout_numerator: the numerator of the payout
     /// * payout_denominator: the denominator of the payout
     /// * _witness: an instance of the GameType struct, enforces that the call is made from the correct game module
-    public fun pay_out<GameType: drop>(
+    public(friend) fun pay_out<GameType: drop>(
         bettor: address,
         bet: Coin<AptosCoin>,
         payout_numerator: u64,
@@ -338,5 +340,16 @@ module aptosino::house {
     /// payout: the payout
     fun assert_payout_is_valid(house: &House, payout_numerator: u64, payout_denominator: u64) {
         assert!(payout_numerator <= house.max_multiplier * payout_denominator, EBetExceedsMaxMultiplier);
+    }
+    
+    #[test_only]
+    public fun test_pay_out<GameType: drop>(
+        bettor: address,
+        bet: Coin<AptosCoin>,
+        payout_numerator: u64,
+        payout_denominator: u64,
+        _witness: GameType
+    ) acquires House {
+        pay_out(bettor, bet, payout_numerator, payout_denominator, _witness);
     }
 }

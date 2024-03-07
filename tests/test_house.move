@@ -203,7 +203,7 @@ module aptosino::test_house {
         let multiplier_numerator = 3;
         let multiplier_denominator = 2;
         
-        house::pay_out(
+        house::test_pay_out(
             signer::address_of(aptosino),
             test_helpers::mint_coins(framework, bet_amount),
             multiplier_numerator,
@@ -225,7 +225,7 @@ module aptosino::test_house {
         let bet_amount: u64 = MIN_BET - 1;
         let multiplier_numerator = 3;
         let multiplier_denominator = 2;
-        house::pay_out(
+        house::test_pay_out(
             signer::address_of(aptosino),
             test_helpers::mint_coins(framework, bet_amount),
             multiplier_numerator,
@@ -241,7 +241,7 @@ module aptosino::test_house {
         let bet_amount: u64 = MAX_BET + 1;
         let multiplier_numerator = 3;
         let multiplier_denominator = 2;
-        house::pay_out(
+        house::test_pay_out(
             signer::address_of(aptosino),
             test_helpers::mint_coins(framework, bet_amount),
             multiplier_numerator,
@@ -257,7 +257,7 @@ module aptosino::test_house {
         let bet_amount: u64 = MIN_BET;
         let multiplier_numerator = MAX_MULTIPLIER + 1;
         let multiplier_denominator = 1;
-        house::pay_out(
+        house::test_pay_out(
             signer::address_of(aptosino),
             test_helpers::mint_coins(framework, bet_amount),
             multiplier_numerator,
@@ -274,7 +274,7 @@ module aptosino::test_house {
         let multiplier_denominator = 1;
         
         let balance_before = coin::balance<AptosCoin>(signer::address_of(aptosino));
-        house::pay_out(
+        house::test_pay_out(
             signer::address_of(aptosino),
             test_helpers::mint_coins(framework, bet_amount),
             multiplier_numerator,
@@ -291,7 +291,7 @@ module aptosino::test_house {
         let bet_amount: u64 = MIN_BET;
         let multiplier_numerator = 3;
         let multiplier_denominator = 2;
-        house::pay_out(
+        house::test_pay_out(
             signer::address_of(aptosino),
             test_helpers::mint_coins(framework, bet_amount),
             multiplier_numerator,
@@ -307,7 +307,7 @@ module aptosino::test_house {
         let bet_amount: u64 = MAX_BET;
         let multiplier_numerator = MAX_MULTIPLIER;
         let multiplier_denominator = 1;
-        house::pay_out(
+        house::test_pay_out(
             signer::address_of(aptosino),
             test_helpers::mint_coins(framework, bet_amount),
             multiplier_numerator,
@@ -325,7 +325,7 @@ module aptosino::test_house {
         let multiplier_numerator = 3;
         let multiplier_denominator = 2;
 
-        house::pay_out(
+        house::test_pay_out(
             signer::address_of(framework),
             test_helpers::mint_coins(framework, bet_amount),
             multiplier_numerator,

@@ -6,9 +6,8 @@ module aptosino::test_blackjack {
 
     use aptos_framework::coin;
     use aptos_framework::aptos_coin::AptosCoin;
-    use aptosino::blackjack::calculate_hand_value_with_ace;
+    
     use aptosino::test_helpers;
-
     use aptosino::house;
     use aptosino::blackjack;
 
@@ -73,19 +72,19 @@ module aptosino::test_blackjack {
     #[test]
     fun test_calculate_hand_value() {
         let hand_1 = vector[vector[1, 0], vector[2, 0]];
-        assert!(blackjack::calculate_hand_value(hand_1) == calculate_hand_value_with_ace(hand_1), 0);
+        assert!(blackjack::calculate_hand_value(hand_1) == blackjack::calculate_hand_value_with_ace(hand_1), 0);
 
         let hand_2 = vector[vector[1, 0], vector[1, 0]];
-        assert!(blackjack::calculate_hand_value(hand_2) == calculate_hand_value_with_ace(hand_2), 0);
+        assert!(blackjack::calculate_hand_value(hand_2) == blackjack::calculate_hand_value_with_ace(hand_2), 0);
 
         let hand_3 = vector[vector[1, 0], vector[1, 0], vector[1, 0]];
-        assert!(blackjack::calculate_hand_value(hand_3) == calculate_hand_value_with_ace(hand_3), 0);
+        assert!(blackjack::calculate_hand_value(hand_3) == blackjack::calculate_hand_value_with_ace(hand_3), 0);
 
         let hand_4 = vector[vector[1, 0], vector[1, 0], vector[10, 0]];
-        assert!(blackjack::calculate_hand_value(hand_4) == calculate_hand_value_with_ace(hand_4), 0);
+        assert!(blackjack::calculate_hand_value(hand_4) == blackjack::calculate_hand_value_with_ace(hand_4), 0);
 
         let hand_5 = vector[vector[1, 0], vector[1, 0], vector[10, 0], vector[10, 0]];
-        assert!(blackjack::calculate_hand_value(hand_5) == calculate_hand_value_with_ace(hand_5), 0);
+        assert!(blackjack::calculate_hand_value(hand_5) == blackjack::calculate_hand_value_with_ace(hand_5), 0);
     }
 
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
