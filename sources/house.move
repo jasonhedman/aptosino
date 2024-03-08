@@ -1,3 +1,4 @@
+/// This module implements the house resource which manages the betting parameters
 module aptosino::house {
 
     use std::signer;
