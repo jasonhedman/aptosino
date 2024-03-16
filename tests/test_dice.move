@@ -94,12 +94,10 @@ module aptosino::test_dice {
             predicted_outcome,
             0
         );
-        let fee = test_helpers::get_fee(BET_AMOUNT, FEE_BPS, FEE_DIVISOR);
         let payout = dice::get_payout(BET_AMOUNT, max_outcome, predicted_outcome);
         
         assert!(house_balance_change == payout - BET_AMOUNT, 0);
         assert!(user_balance_change == payout - BET_AMOUNT, 0);
-        assert!(house::get_accrued_fees() == fee, 0);
     }
     
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
@@ -115,11 +113,9 @@ module aptosino::test_dice {
             predicted_outcome,
             max_outcome - 1,
         );
-        let fee = test_helpers::get_fee(BET_AMOUNT, FEE_BPS, FEE_DIVISOR);
         
         assert!(house_balance_change == BET_AMOUNT, 0);
         assert!(user_balance_change == BET_AMOUNT, 0);
-        assert!(house::get_accrued_fees() == fee, 0);
     }
 
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]

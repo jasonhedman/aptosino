@@ -112,12 +112,10 @@ module aptosino::test_roulette {
             predicted_outcomes,
             0
         );
-        let fee = test_helpers::get_fee(BET_AMOUNT, FEE_BPS, FEE_DIVISOR);
         let payout = roulette::get_payout(BET_AMOUNT, *vector::borrow(&predicted_outcomes, 0));
         
         assert!(house_balance_change == payout - BET_AMOUNT, 0);
         assert!(user_balance_change == payout - BET_AMOUNT, 0);
-        assert!(house::get_accrued_fees() == fee, 0);
     }
 
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
@@ -132,7 +130,6 @@ module aptosino::test_roulette {
         );
         assert!(house_balance_change == BET_AMOUNT, 0);
         assert!(user_balance_change == BET_AMOUNT, 0);
-        assert!(house::get_accrued_fees() == test_helpers::get_fee(BET_AMOUNT, FEE_BPS, FEE_DIVISOR), 0);
     }
 
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
@@ -154,7 +151,6 @@ module aptosino::test_roulette {
         
         assert!(house_balance_change == payout_2 - total_bet_amount, 0);
         assert!(user_balance_change == payout_2 - total_bet_amount, 0);
-        assert!(house::get_accrued_fees() == house::get_fee_amount(total_bet_amount), 0);
     }
     
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]

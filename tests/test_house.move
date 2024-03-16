@@ -1,10 +1,12 @@
 #[test_only]
 module aptosino::test_house {
     use std::signer;
+    use aptos_framework::account;
 
     use aptos_framework::aptos_coin;
     use aptos_framework::aptos_coin::AptosCoin;
     use aptos_framework::coin;
+    use aptosino::house::HouseShares;
     use aptosino::test_helpers;
 
     use aptosino::house;
@@ -36,6 +38,7 @@ module aptosino::test_house {
         assert!(house::get_max_bet() == MAX_BET, 0);
         assert!(house::get_max_multiplier() == MAX_MULTIPLIER, 0);
         assert!(house::get_fee_bps() == FEE_BPS, 0);
+        assert!(house::get_house_shares_supply() == INITIAL_DEPOSIT, 0);
     }
 
     #[test(framework = @aptos_framework, aptosino = @0x101)]
@@ -53,7 +56,7 @@ module aptosino::test_house {
     }
 
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
-    #[expected_failure(abort_code= house::EAdminInsufficientBalance)]
+    #[expected_failure(abort_code= house::EInsufficientBalance)]
     fun test_init_not_enough_coins(framework: &signer, aptosino: &signer) {
         test_helpers::setup_tests(framework, aptosino, INITIAL_DEPOSIT);
         house::init(
@@ -64,30 +67,6 @@ module aptosino::test_house {
             MAX_MULTIPLIER,
             FEE_BPS,
         );
-    }
-
-    #[test(framework = @aptos_framework, aptosino = @aptosino)]
-    fun test_deposit(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
-        let deposit_amount: u64 = 10_000_000;
-        aptos_coin::mint(framework, signer::address_of(aptosino), deposit_amount);
-        house::deposit(aptosino, deposit_amount);
-        assert!(house::get_house_balance() == INITIAL_DEPOSIT + deposit_amount, 0);
-    }
-
-    #[test(framework = @aptos_framework, aptosino = @aptosino, non_admin = @0x101)]
-    #[expected_failure(abort_code= house::ESignerNotAdmin)]
-    fun test_deposit_not_admin(framework: &signer, aptosino: &signer, non_admin: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
-        house::deposit(non_admin, 1);
-    }
-
-    #[test(framework = @aptos_framework, aptosino = @aptosino)]
-    #[expected_failure(abort_code= house::EAdminInsufficientBalance)]
-    fun test_deposit_not_enough_coins(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
-        let deposit_amount: u64 = 10_000_000;
-        house::deposit(aptosino, deposit_amount);
     }
 
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
@@ -195,7 +174,7 @@ module aptosino::test_house {
     }
     
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
-    fun test_pay_out(framework: &signer, aptosino: &signer) {
+    fun test_bet(framework: &signer, aptosino: &signer) {
         setup_with_approved_game(framework, aptosino);
         
         let bet_amount: u64 = 1_000_000;
@@ -215,7 +194,6 @@ module aptosino::test_house {
         
         assert!(house::get_house_balance() == INITIAL_DEPOSIT - payout + bet_amount, 0);
         assert!(coin::balance<AptosCoin>(signer::address_of(aptosino)) == payout, 0);
-        assert!(house::get_accrued_fees() == fee, 0);
     }
 
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
@@ -302,7 +280,7 @@ module aptosino::test_house {
 
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     #[expected_failure(abort_code= house::EHouseInsufficientBalance)]
-    fun test_house_insufficient_balance(framework: &signer, aptosino: &signer) {
+    fun test_bet_house_insufficient_balance(framework: &signer, aptosino: &signer) {
         setup_with_approved_game(framework, aptosino);
         let bet_amount: u64 = MAX_BET;
         let multiplier_numerator = MAX_MULTIPLIER;
@@ -317,23 +295,167 @@ module aptosino::test_house {
     }
 
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
-    fun test_withdraw_fees(framework: &signer, aptosino: &signer) {
-        setup_with_approved_game(framework, aptosino);
+    fun test_get_deposit_and_withdraw_amounts(framework: &signer, aptosino: &signer) {
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        
+        assert!(house::get_house_shares_amount_from_deposit_amount(100) == 100, 0);
+        assert!(house::get_withdraw_amount_from_shares_amount(100) == 100, 0);
+        
+        house::withdraw(aptosino, coin::balance<HouseShares>(signer::address_of(aptosino)));
 
+        assert!(house::get_house_shares_amount_from_deposit_amount(100) == 100, 0);
+        assert!(house::get_withdraw_amount_from_shares_amount(100) == 0, 0);
+    }
+
+    #[test(framework = @aptos_framework, aptosino = @aptosino)]
+    fun test_deposit(framework: &signer, aptosino: &signer) {
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        let deposit_amount: u64 = 10_000_000;
+        aptos_coin::mint(framework, signer::address_of(aptosino), deposit_amount);
+        house::deposit(aptosino, deposit_amount);
+        assert!(house::get_house_balance() == INITIAL_DEPOSIT + deposit_amount, 0);
+        assert!(house::get_house_shares_supply() == INITIAL_DEPOSIT + deposit_amount, 0);
+        assert!(coin::balance<HouseShares>(@aptosino) == INITIAL_DEPOSIT + deposit_amount, 0);
+    }
+
+    #[test(framework = @aptos_framework, aptosino = @aptosino)]
+    #[expected_failure(abort_code= house::EInsufficientBalance)]
+    fun test_deposit_not_enough_coins(framework: &signer, aptosino: &signer) {
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        let deposit_amount: u64 = 10_000_000;
+        house::deposit(aptosino, deposit_amount);
+    }
+    
+    #[test(framework = @aptos_framework, aptosino = @aptosino)]
+    #[expected_failure(abort_code=house::EAmountInvalid)]
+    fun test_deposit_zero(framework: &signer, aptosino: &signer) {
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        house::deposit(aptosino, 0);
+    }
+    
+    #[test(framework = @aptos_framework, aptosino = @aptosino)]
+    fun test_deposit_after_bet_win(framework: &signer, aptosino: &signer) {
+        setup_with_approved_game(framework, aptosino);
+        
         let bet_amount: u64 = 1_000_000;
         let fee = test_helpers::get_fee(bet_amount, FEE_BPS, FEE_DIVISOR);
         let multiplier_numerator = 3;
         let multiplier_denominator = 2;
-
+        
         house::test_pay_out(
-            signer::address_of(framework),
+            signer::address_of(aptosino),
             test_helpers::mint_coins(framework, bet_amount),
             multiplier_numerator,
             multiplier_denominator,
             TestGame {}
         );
+        let payout = bet_amount * multiplier_numerator / multiplier_denominator - fee;
+        let house_balance_before = house::get_house_balance();
 
-        house::withdraw_fees(aptosino);
-        assert!(coin::balance<AptosCoin>(signer::address_of(aptosino)) == fee, 0);
+        let deposit_amount: u64 = 10_000_000;
+        aptos_coin::mint(framework, signer::address_of(aptosino), deposit_amount);
+        house::deposit(aptosino, deposit_amount);
+        assert!(house::get_house_balance() == INITIAL_DEPOSIT - payout + bet_amount + deposit_amount, 0);
+        assert!(house::get_house_shares_supply() == INITIAL_DEPOSIT + deposit_amount * INITIAL_DEPOSIT / house_balance_before, 0);
+    }
+    
+    #[test(framework = @aptos_framework, aptosino = @aptosino)]
+    fun test_deposit_after_loss(framework: &signer, aptosino: &signer) {
+        setup_with_approved_game(framework, aptosino);
+        
+        let bet_amount: u64 = 1_000_000;
+        let multiplier_numerator = 0;
+        let multiplier_denominator = 1;
+        
+        house::test_pay_out(
+            signer::address_of(aptosino),
+            test_helpers::mint_coins(framework, bet_amount),
+            multiplier_numerator,
+            multiplier_denominator,
+            TestGame {}
+        );
+        let house_balance_before = house::get_house_balance();
+
+        let deposit_amount: u64 = 10_000_000;
+        aptos_coin::mint(framework, signer::address_of(aptosino), deposit_amount);
+        house::deposit(aptosino, deposit_amount);
+        assert!(house::get_house_balance() == INITIAL_DEPOSIT + bet_amount + deposit_amount, 0);
+        assert!(house::get_house_shares_supply() == INITIAL_DEPOSIT + deposit_amount * INITIAL_DEPOSIT / house_balance_before, 0);
+    }
+
+    #[test(framework = @aptos_framework, aptosino = @aptosino)]
+    fun test_withdraw(framework: &signer, aptosino: &signer) {
+        setup_with_approved_game(framework, aptosino);
+        house::withdraw(aptosino, coin::balance<HouseShares>(@aptosino));
+        assert!(coin::balance<AptosCoin>(@aptosino) == INITIAL_DEPOSIT, 0);
+        assert!(coin::balance<HouseShares>(@aptosino) == 0, 0)
+    }
+
+    #[test(framework = @aptos_framework, aptosino = @aptosino)]
+    #[expected_failure(abort_code=house::EAmountInvalid)]
+    fun test_withdraw_zero(framework: &signer, aptosino: &signer) {
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        house::withdraw(aptosino, 0);
+    }
+    
+    #[test(framework = @aptos_framework, aptosino = @aptosino)]
+    #[expected_failure(abort_code= house::EInsufficientBalance)]
+    fun test_withdraw_not_enough_shares(framework: &signer, aptosino: &signer) {
+        setup_with_approved_game(framework, aptosino);
+        house::withdraw(aptosino, coin::balance<HouseShares>(@aptosino) + 1);
+    }
+    
+    #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
+    fun test_withdraw_after_win(framework: &signer, aptosino: &signer, player: &signer) {
+        setup_with_approved_game(framework, aptosino);
+        
+        let bet_amount: u64 = 1_000_000;
+        let multiplier_numerator = 3;
+        let multiplier_denominator = 2;
+        
+        let player_address = signer::address_of(player);
+        account::create_account_for_test(player_address);
+        coin::register<AptosCoin>(player);
+        house::test_pay_out(
+            player_address,
+            test_helpers::mint_coins(framework, bet_amount),
+            multiplier_numerator,
+            multiplier_denominator,
+            TestGame {}
+        );
+        
+        let fee = test_helpers::get_fee(bet_amount, FEE_BPS, FEE_DIVISOR);
+
+        house::withdraw(aptosino, coin::balance<HouseShares>(@aptosino));
+        assert!(coin::balance<AptosCoin>(@aptosino) == INITIAL_DEPOSIT - bet_amount / 2 + fee, 0);
+        assert!(coin::balance<HouseShares>(@aptosino) == 0, 0);
+        assert!(house::get_house_balance() == 0, 0);
+        assert!(house::get_house_shares_supply() == 0, 0);
+    }
+
+    #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
+    fun test_withdraw_after_loss(framework: &signer, aptosino: &signer, player: &signer) {
+        setup_with_approved_game(framework, aptosino);
+
+        let bet_amount: u64 = 1_000_000;
+        let multiplier_numerator = 0;
+        let multiplier_denominator = 1;
+
+        let player_address = signer::address_of(player);
+        account::create_account_for_test(player_address);
+        coin::register<AptosCoin>(player);
+        house::test_pay_out(
+            player_address,
+            test_helpers::mint_coins(framework, bet_amount),
+            multiplier_numerator,
+            multiplier_denominator,
+            TestGame {}
+        );
+        
+        house::withdraw(aptosino, coin::balance<HouseShares>(@aptosino));
+        assert!(coin::balance<AptosCoin>(@aptosino) == INITIAL_DEPOSIT + bet_amount, 0);
+        assert!(coin::balance<HouseShares>(@aptosino) == 0, 0);
+        assert!(house::get_house_balance() == 0, 0);
+        assert!(house::get_house_shares_supply() == 0, 0);
     }
 }
