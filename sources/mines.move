@@ -63,6 +63,7 @@ module aptosino::mines {
         rows: u8,
         cols: u8,
         mines: u8,
+        gems: u8
     }
 
     // game functions
