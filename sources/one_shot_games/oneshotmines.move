@@ -69,9 +69,9 @@ module aptosino::oneshotmines {
         num_mines: u8,
     ) {
         assert_board_is_valid(num_rows, num_cols, num_revealed, num_mines);
-        let num_cells_remaining = num_rows * num_cols - num_revealed
-        let result = randomness::u8_range(0, (num_cells_remaining as u8));
-        choose_cell_impl(player, bet_amount_input, (num_cells_remaining as u8), num_mines, result);
+        let num_cells_remaining = num_rows * num_cols - num_revealed;
+        let result = randomness::u8_range(0, num_cells_remaining);
+        choose_cell_impl(player, bet_amount_input, num_cells_remaining, num_mines, result);
     }
 
     /// Implementation of the choose_cell function, extracted to allow testing
