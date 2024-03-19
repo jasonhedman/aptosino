@@ -175,6 +175,7 @@ module aptosino::poker {
         let unique_suits_ref = &mut unique_suits;
 
         vector::for_each<Card>(cards, |card| {
+            let card: Card = card;
             if (!vector::contains<u8>(unique_ranks_ref, &card.rank)) {
                 vector::push_back<u8>(unique_ranks_ref, card.rank);
             };
@@ -191,7 +192,7 @@ module aptosino::poker {
 
         // Unless we have 5 unique ranks, we can't have a straight
         if (vector::length(unique_ranks_ref) == 5) {
-            if (check_straight(unique_ranks)) {
+            if (check_straight(unique_ranks_ref)) {
                 vector::push_back<u8>(hands_ref, STRAIGHT);
                 if (flush) {
                     vector::push_back<u8>(hands_ref, STRAIGHTFLUSH);
@@ -242,7 +243,9 @@ module aptosino::poker {
         let ranks = vector::empty<u8>();
         let ranks_ref = &mut ranks;
 
+        let cards = cards;
         vector::for_each<Card>(cards, |card| {
+            let card: Card = card;
             vector::push_back<u8>(ranks_ref, card.rank);
         });
 
@@ -257,7 +260,7 @@ module aptosino::poker {
                 j = j + 1;
             };
             if (count == 4) {
-                return true;
+                return true
             };
             count = 0;
             i = i + 1;
@@ -269,7 +272,9 @@ module aptosino::poker {
         let ranks = vector::empty<u8>();
         let ranks_ref = &mut ranks;
 
+        let cards = cards;
         vector::for_each<Card>(cards, |card| {
+            let card: Card = card;
             vector::push_back<u8>(ranks_ref, card.rank);
         });
 
@@ -284,7 +289,7 @@ module aptosino::poker {
                 j = j + 1;
             };
             if (count == 3) {
-                return true;
+                return true
             };
             count = 0;
             i = i + 1;
@@ -293,16 +298,15 @@ module aptosino::poker {
     }
 
 
-    fun check_straight(ranks: vector<u8>): bool {
+    fun check_straight(ranks: &vector<u8>): bool {
         let ranks = ranks;
-        let ranks_ref = &ranks;
 
         let high_card = 0;
         let low_card = 14;
 
-        vector::for_each(ranks, |rank| {
+        vector::for_each(*ranks, |rank| {
             if (rank == 13) {
-                if (vector::contains<u8>(ranks_ref, &1)) {
+                if (vector::contains<u8>(ranks, &1)) {
                     high_card = 14;
                 }
             }
