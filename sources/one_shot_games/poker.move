@@ -162,7 +162,7 @@ module aptosino::poker {
     }
 
 
-    fun get_dealt_hands_from_cards(cards: vector<Card>): vector<u8> {
+    public fun get_dealt_hands_from_cards(cards: vector<Card>): vector<u8> {
         let flush = false;
 
         let hands = vector::empty<u8>();
@@ -299,27 +299,25 @@ module aptosino::poker {
 
 
     fun check_straight(ranks: &vector<u8>): bool {
-        let ranks = ranks;
-
-        let high_card = 0;
-        let low_card = 14;
-
-        vector::for_each(*ranks, |rank| {
-            if (rank == 13) {
-                if (vector::contains<u8>(ranks, &1)) {
-                    high_card = 14;
-                }
-            }
-            else {
-                if (rank > high_card) {
-                    high_card = rank;
+        // no sorting needed, we know we have 5 unique ranks
+        let ace = vector::contains(ranks, &1);
+        let king = vector::contains(ranks, &13);
+        if (ace && king) {
+            (vector::contains(ranks, &10) && vector::contains(ranks, &11) && vector::contains(ranks, &12))
+        } else {
+            let min = 14;
+            let max = 0;
+            // no min or max function, need to iterate
+            vector::for_each(*ranks, |rank| {
+                if (rank < min) {
+                    min = rank;
                 };
-                if (rank < low_card) {
-                    low_card = rank;
+                if (rank > max) {
+                    max = rank;
                 };
-            }
-        });
-        high_card - low_card == 4
+            });
+            max - min == 4
+        }
     }
 
 
@@ -334,6 +332,13 @@ module aptosino::poker {
         } else {
             bet_amount * NUM_OUTCOMES / category_size
         }
+    }
+    /// Returns a card object with a given rank and suit
+    /// * rank: the rank of the card, represented as a number
+    /// * suit: the suit of the card, represented as a number
+    /// Returns: a card object
+    public fun newCard(rank: u8, suit: u8): Card {
+        Card { rank, suit }
     }
 
     /// Returns the size of the category for a given predicted outcome
