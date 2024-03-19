@@ -1,21 +1,3 @@
-/// https://math.hawaii.edu/~ramsey/Probability/PokerHands.html
-/// Allow people to bet on the above categories in a 5 card hand of poker.
-/// Kind of a specification of roulette.
-/// Number of possible hands: 2,598,960
-/// Intuitively exclusive categories (i.e. a hand can't be both a single pair and a triple)
-/// Single Pair (1): 1098240
-/// Two Pair (2): 123552
-/// Triple (3): 54912
-/// Full House (4): 3744
-/// Four of a Kind (5): 624
-/// Intuitively non-exclusive categories:
-/// Straight (6): 10240
-/// Flush (7): 5144
-/// Straight Flush (8): 40
-/// Royal Flush (9): 4
-/// None (0): 1302540
-/// 10 possible categories - odds baked into the game
-
 module aptosino::poker {
 
     use std::signer;
@@ -28,7 +10,6 @@ module aptosino::poker {
 
     use aptosino::house;
 
-
     /// The number of bets does not match the number of predicted outcomes
     const ENumberOfBetsDoesNotMatchNumberOfPredictedOutcomes: u64 = 101;
     /// The number of bets is zero
@@ -39,24 +20,54 @@ module aptosino::poker {
     const EInvalidNumberOfPredictedOutcomes: u64 = 104;
     /// A predicted outcome is out of range
     const EPredictedOutcomeOutOfRange: u64 = 105;
-    /// A predicted outcome is invalid
 
+    // For readability
+    const HIGHCARD: u8 = 0;
+    const ONEPAIR: u8 = 1;
+    const TWOPAIR: u8 = 2;
+    const THREEOFAKIND: u8 = 3;
+    const FULLHOUSE: u8 = 6;
+    const FOUROFAKIND: u8 = 7;
+    const STRAIGHT: u8 = 4;
+    const FLUSH: u8 = 5;
+    const STRAIGHTFLUSH: u8 = 8;
+    const ROYALFLUSH: u8 = 9;
+
+    // The number of possible outcomes in a five-card-draw poker hand
     const NUM_OUTCOMES: u64 = 2598960;
+
 
     // Structs
 
     struct FiveCardDrawPoker has drop {}
 
-    /// A deck is a vector of cards (in this module we force a standard deck of 52 cards)
-    struct Card has copy, drop{
+    // A deck is a vector of cards (in this module we force a standard deck of 52 cards)
+    struct Card has copy, drop, store {
         suit: u8,
         rank: u8,
+    }
+
+    // Builds a standard deck of 52 cards and returns a copy of it
+    fun build_deck(): vector<Card> {
+        let suit = 0;
+        let rank = 1;
+        let deck = vector::empty<Card>();
+        let deck_mut = &mut deck;
+        while (suit < 4) {
+            while (rank < 14) {
+                vector::push_back<Card>(deck_mut, Card { suit, rank });
+                rank = rank + 1;
+            };
+            rank = 1;
+            suit = suit + 1;
+        };
+        deck
     }
 
     // events
 
     #[event]
-    /// Event emitted when the dice are rolled
+    /// Event emitted when the cards are dealt
     struct DealCardsEvent has drop, store {
         /// The address of the player
         player_address: address,
@@ -64,13 +75,22 @@ module aptosino::poker {
         bet_amounts: vector<u64>,
         /// The hands the player bet on
         predicted_outcomes: vector<u8>,
-        /// Dealt cards
+        /// Dealt cards (rank, suit) where rank is a number between 1 and 13 and suit is a number between 0 and 3
+        /// Length is 5
         cards_dealt: vector<Card>,
         /// Winning hands
         result: vector<u8>,
     }
 
-    // game functions
+
+    // admin functions
+
+    /// Approves the dice game on the house module
+    /// * admin: the signer of the admin account
+    public entry fun approve_game(admin: &signer) {
+        house::approve_game<FiveCardDrawPoker>(admin, FiveCardDrawPoker {});
+    }
+
 
     /// Deals the cards and pays out the player according to his bet
     public entry fun deal_cards(
@@ -79,32 +99,29 @@ module aptosino::poker {
         predicted_outcomes: vector<u8>
     ) {
         let deck = build_deck();
-
-        let shuffle = randomness::permutation(52);
+        let shuffle: vector<u64> = randomness::permutation(52);
         let cards_dealt: vector<Card> = vector::empty<Card>();
-        while (vector::length(cards_dealt) < 5) {
-            let card = vector::borrow<Card>(&deck, vector::borrow<u64>(&shuffle, cards_dealt));
-            vector::push_back<Card>(cards_dealt, card);
+        let dealer = &mut cards_dealt;
+
+        let i: u64 = 0;
+        while (i < 5) {
+            let card = *vector::borrow<Card>(&deck, *vector::borrow<u64>(&shuffle, i));
+            vector::push_back<Card>(dealer, card);
+            i = i + 1;
         };
 
-        let result = get_dealt_hands_from_cards(cards_dealt);
+        let winning_hands = get_dealt_hands_from_cards(cards_dealt);
 
-        /// If no hands are found, we add the field to the result
-        if (vector::length(result) == 0) {
-            vector::push_back<u8>(result, 0);
-        };
+        deal_cards_impl(player, bet_amount_inputs, predicted_outcomes, winning_hands, cards_dealt);
 
-        deal_cards_impl(player, bet_amount_inputs, predicted_outcomes, cards_dealt, result);
     }
 
-    /// Implementation of the deal_cards function
-    /// * result: the hands which were dealt
     fun deal_cards_impl(
         player: &signer,
         bet_amounts: vector<u64>,
         predicted_outcomes: vector<u8>,
-        cards_dealt: vector<Card>,
-        result: vector<u8>
+        winning_hands: vector<u8>,
+        cards_dealt: vector<Card>
     ) {
         assert_bets_are_valid(&bet_amounts, &predicted_outcomes);
 
@@ -121,11 +138,9 @@ module aptosino::poker {
         let i = 0;
         while (i < vector::length(&bet_amounts)) {
             let predicted_outcome = vector::borrow(&predicted_outcomes, i);
-            assert_predicted_outcome_is_valid(predicted_outcome);
-            if(vector::contains(predicted_outcome, &result)) {
-                let category_size = get_category_size(predicted_outcome);
-                payout_numerator = payout_numerator + (NUM_OUTCOMES as u64) * *vector::borrow(&bet_amounts, i);
-                payout_denominator = payout_denominator + category_size * total_bet_amount;
+            if(vector::contains(&winning_hands, predicted_outcome)) {
+                payout_numerator = payout_numerator + NUM_OUTCOMES * *vector::borrow(&bet_amounts, i);
+                payout_denominator = payout_denominator + get_category_size(*predicted_outcome) * total_bet_amount;
             };
             i = i + 1;
         };
@@ -142,299 +157,226 @@ module aptosino::poker {
             bet_amounts,
             predicted_outcomes,
             cards_dealt,
-            result,
+            result: winning_hands,
         });
     }
 
-    /// Identify hands in the dealt cards and return a vector containing all the hands, empty if none
+
     fun get_dealt_hands_from_cards(cards: vector<Card>): vector<u8> {
         let flush = false;
 
         let hands = vector::empty<u8>();
+        let hands_ref = &mut hands;
 
-        let unique_ranks_found = vector::empty<u8>();
-        let unique_suits_found = vector::empty<u8>();
+        let unique_ranks = vector::empty<u8>();
+        let unique_ranks_ref = &mut unique_ranks;
 
-        vector::for_each(cards, |card| {
-            if (!vector::contains(unique_ranks_found, card.rank)) {
-                vector::push_back<u8>(unique_ranks_found, card.rank);
+        let unique_suits = vector::empty<u8>();
+        let unique_suits_ref = &mut unique_suits;
+
+        vector::for_each<Card>(cards, |card| {
+            if (!vector::contains<u8>(unique_ranks_ref, &card.rank)) {
+                vector::push_back<u8>(unique_ranks_ref, card.rank);
             };
-            if (!vector::contains(unique_suits_found, card.suit)) {
-                vector::push_back<u8>(unique_suits_found, card.suit);
+            if (!vector::contains<u8>(unique_suits_ref, &card.suit)) {
+                vector::push_back<u8>(unique_suits_ref, card.suit);
             };
         });
 
-        /// If we only find 1 suit, we have a flush, we mark it here to handle straight flushes later
-        if (vector::length(unique_suits_found) == 1) {
-            vector::push_back<u8>(hands, 7);
+        // If we only find 1 suit, we have a flush, we mark it here to handle straight flushes later
+        if (vector::length(unique_suits_ref) == 1) {
+            vector::push_back<u8>(hands_ref, FLUSH);
             flush = true;
         };
 
-        /// Unles we have 5 unique ranks, we can't have a straight
-        if (vector::length(unique_ranks_found) == 5) {
-            if (check_straight(unique_ranks_found)) {
-                /// Straight
-                vector::push_back<u64>(hands, 6);
-                /// Straight flush
+        // Unless we have 5 unique ranks, we can't have a straight
+        if (vector::length(unique_ranks_ref) == 5) {
+            if (check_straight(unique_ranks)) {
+                vector::push_back<u8>(hands_ref, STRAIGHT);
                 if (flush) {
-                    vector::push_back<u64>(hands, 8);
-                    /// Royal flush
-                    if (get_highest_rank(unique_ranks_found) == 14 ) {
-                        vector::push_back<u64>(hands, 9);
-                    };
+                    vector::push_back<u8>(hands_ref, STRAIGHTFLUSH);
+                    // Royal flush
+                    if (vector::contains(unique_ranks_ref, &13) && vector::contains(unique_ranks_ref, &1)) {
+                        vector::push_back<u8>(hands_ref, ROYALFLUSH);
+                    }
                 };
             };
         };
 
-        /// If we have 4 unique ranks, we have a single pair
-        if (vector::length(unique_ranks_found) == 4) {
-            /// Single pair
-            vector::push_back<u64>(hands, 1);
+        // If we have 4 unique ranks, we have a pair
+        if (vector::length(unique_ranks_ref) == 4) {
+            vector::push_back<u8>(hands_ref, ONEPAIR);
         };
 
-        /// If we have 3 unique ranks, we have a triple or two pair
-        if (vector::length(unique_ranks_found) == 3) {
-            if (check_triple(unique_ranks_found)) {
-                /// Triple
-                vector::push_back<u64>(hands, 3);
+        // If we have 3 unique ranks, we have a triple or two pair
+        if (vector::length(unique_ranks_ref) == 3) {
+            if (check_triple(cards)) {
+                // Triple
+                vector::push_back<u8>(hands_ref, THREEOFAKIND);
             } else {
-                /// Two pair
-                vector::push_back<u64>(hands, 2);
+                // Two pair
+                vector::push_back<u8>(hands_ref, TWOPAIR);
             };
         };
 
-        /// If we have 2 unique ranks, we have a full house or four of a kind
-        if (vector::length(unique_ranks_found) == 2) {
-            if (check_four_of_a_kind(unique_ranks_found)) {
-                /// Four of a kind
-                vector::push_back<u64>(hands, 5);
+
+        // If we have 2 unique ranks, we have a full house or four of a kind
+        if (vector::length(unique_ranks_ref) == 2) {
+            if (check_four_of_a_kind(cards)) {
+                // Four of a kind
+                vector::push_back<u8>(hands_ref, FOUROFAKIND);
             } else {
-                /// Full house
-                vector::push_back<u64>(hands, 4);
+                // Full house
+                vector::push_back<u8>(hands_ref, FULLHOUSE);
             };
+        };
+
+        if (vector::length(hands_ref) == 0) {
+            vector::push_back<u8>(hands_ref, HIGHCARD);
         };
 
         hands
     }
 
-    fun check_triple(ranks_found: vector<u64>): bool {
-        let triple = false;
-        vector::for_each(ranks_found, |rank| {
-            let count = 0;
-            vector::for_each(cards, |card| {
-                if (card.rank == rank) {
-                    count = count + 1;
-                };
-            });
-            if (count == 3) {
-                triple = true;
-            };
-        });
-        triple
-    }
+    fun check_four_of_a_kind(cards: vector<Card>): bool {
+        let ranks = vector::empty<u8>();
+        let ranks_ref = &mut ranks;
 
-    fun check_four_of_a_kind(ranks_found: vector<u64>): bool {
-        let four_of_a_kind = false;
-        vector::for_each(ranks_found, |rank| {
-            let count = 0;
-            vector::for_each(cards, |card| {
-                if (card.rank == rank) {
+        vector::for_each<Card>(cards, |card| {
+            vector::push_back<u8>(ranks_ref, card.rank);
+        });
+
+        let count = 0;
+        let i = 0;
+        while (i < vector::length(ranks_ref)) {
+            let j = 0;
+            while (j < vector::length(ranks_ref)) {
+                if (vector::borrow(ranks_ref, i) == vector::borrow(ranks_ref, j)) {
                     count = count + 1;
                 };
-            });
+                j = j + 1;
+            };
             if (count == 4) {
-                four_of_a_kind = true;
+                return true;
             };
-        });
-        four_of_a_kind
+            count = 0;
+            i = i + 1;
+        };
+        false
     }
 
-    /// Check if the cards form a straight, ranks are guranteed to be unique
-    /// Aces can be high (14) or low(1), they are represented as 1 in the cards
-    fun check_straight(ranks_found: &vector<u64>): bool {
-        let ranks = vector::empty<u64>();
-        let high_ace = false;
+    fun check_triple(cards: vector<Card>): bool {
+        let ranks = vector::empty<u8>();
+        let ranks_ref = &mut ranks;
 
-        /// If we have a king, we will treat any aces as high
-        vector::for_each(ranks_found, |rank| {
+        vector::for_each<Card>(cards, |card| {
+            vector::push_back<u8>(ranks_ref, card.rank);
+        });
+
+        let count = 0;
+        let i = 0;
+        while (i < vector::length(ranks_ref)) {
+            let j = 0;
+            while (j < vector::length(ranks_ref)) {
+                if (vector::borrow(ranks_ref, i) == vector::borrow(ranks_ref, j)) {
+                    count = count + 1;
+                };
+                j = j + 1;
+            };
+            if (count == 3) {
+                return true;
+            };
+            count = 0;
+            i = i + 1;
+        };
+        false
+    }
+
+
+    fun check_straight(ranks: vector<u8>): bool {
+        let ranks = ranks;
+        let ranks_ref = &ranks;
+
+        let high_card = 0;
+        let low_card = 14;
+
+        vector::for_each(ranks, |rank| {
             if (rank == 13) {
-                high_ace = true;
+                if (vector::contains<u8>(ranks_ref, &1)) {
+                    high_card = 14;
+                }
+            }
+            else {
+                if (rank > high_card) {
+                    high_card = rank;
+                };
+                if (rank < low_card) {
+                    low_card = rank;
+                };
             }
         });
-
-        vector::for_each(cards, |card| {
-            if (card.rank == 1 && high_ace) {
-                vector::push_back<u64>(ranks, 14);
-            } else {
-                vector::push_back<u64>(ranks, card.rank);
-            };
-        });
-
-        vector::all(ranks, |rank| {
-            vector::contains(ranks, rank + 1) || vector::contains(ranks, rank - 1)
-        })
+        high_card - low_card == 4
     }
 
-    /// Return the highest rank in the hand
-    fun get_highest_rank(cards: vector<Card>): u64 {
-        let max_rank = 0;
-        vector::for_each(cards, |card| {
-            if (card.rank > max_rank) {
-                max_rank = card.rank;
-            };
-        });
-        max_rank
+
+    #[view]
+    /// Returns the payout for a given bet
+    /// * bet_amount: the amount to bet
+    /// * predicted_outcome: the numbers the player predicts
+    public fun get_payout(bet_amount: u64, predicted_outcome: u8): u64 {
+        let category_size = get_category_size(predicted_outcome);
+        if (category_size == 0) {
+            0
+        } else {
+            bet_amount * NUM_OUTCOMES / category_size
+        }
     }
 
-    // utility functions
-
-    /// Builds a standard deck of 52 cards and returns
-    fun build_deck(): vector<Card> {
-        let suit = 0;
-        let rank = 1;
-        let deck = vector::empty<Card>();
-        while (suit < 4) {
-            while (rank < 14) {
-                vector::push_back<Card>(deck, Card {suit, rank});
-                rank = rank + 1;
-            };
-            rank = 1;
-            suit = suit + 1;
-        };
-        deck
-    }
-
-    // getters
-
+    /// Returns the size of the category for a given predicted outcome
+    /// * predicted_outcome: the hand the player predicted, represented as a number
+    /// Returns: the size of the category as a u64, or 0 if the predicted outcome is invalid
     fun get_category_size(predicted_outcome: u8): u64 {
-        assert!(predicted_outcome < 9 && predicted_outcome > 0, EPredictedOutcomeOutOfRange);
-        /// Represents a bet on no hands (the field)
-        if (predicted_outcome == 0) {
+        assert!(predicted_outcome <= 9 && predicted_outcome >= 0, EPredictedOutcomeOutOfRange);
+        if (predicted_outcome == HIGHCARD) {
             1302540
-        };
-        /// Represents bet on a single pair
-        if (predicted_outcome == 1) {
+        } else if (predicted_outcome == ONEPAIR) {
             1098240
-        };
-        /// Represents bet on two pairs
-        if (predicted_outcome == 2) {
+        } else if (predicted_outcome == TWOPAIR) {
             123552
-        };
-        /// Represents bet on a triple
-        if (predicted_outcome == 3) {
+        } else if (predicted_outcome == THREEOFAKIND) {
             54912
-        };
-        /// Represents bet on a full house
-        if (predicted_outcome == 4) {
+        } else if (predicted_outcome == FULLHOUSE) {
             3744
-        };
-        /// Represents bet on a four of a kind
-        if (predicted_outcome == 5) {
+        } else if (predicted_outcome == FOUROFAKIND) {
             624
-        };
-        /// Represents bet on a straight
-        if (predicted_outcome == 6) {
+        } else if (predicted_outcome == STRAIGHT) {
             10240
-        };
-        /// Represents bet on a flush
-        if (predicted_outcome == 7) {
+        } else if (predicted_outcome == FLUSH) {
             5144
-        };
-        /// Represents bet on a straight flush
-        if (predicted_outcome == 8) {
+        } else if (predicted_outcome == STRAIGHTFLUSH) {
             40
-        };
-        /// Represents bet on a royal flush
-        if (predicted_outcome == 9) {
+        } else if (predicted_outcome == ROYALFLUSH) {
             4
         } else {
             0
         }
     }
 
-    #[view]
-    /// Returns the multiplier for a given bet
-    /// * predicted_outcome: the hand the player predicted, represented as a number
-    /// Returns: the multiplier for the bet as a vector, where the first element
-    /// is the numerator and the second element is the denominator
-    public fun get_bet_multiplier(predicted_outcome: u64): vector<u64> {
-        assert!(predicted_outcome < 9 && predicted_outcome > 0, EPredictedOutcomeOutOfRange);
-        let multiplier_numerator = 2598960;
-        let multiplier_denominator: u64;
-        /// Represents a bet on no hands (the field)
-        if (predicted_outcome == 0) {
-            multiplier_denominator = 1302540;
-        };
-        /// Represents bet on a single pair
-        if (predicted_outcome == 1) {
-            multiplier_denominator = 1098240;
-        };
-        /// Represents bet on two pairs
-        if (predicted_outcome == 2) {
-            multiplier_denominator = 123552;
-        };
-        /// Represents bet on a triple
-        if (predicted_outcome == 3) {
-            multiplier_denominator = 54912;
-        };
-        /// Represents bet on a full house
-        if (predicted_outcome == 4) {
-            multiplier_denominator = 3744;
-        };
-        /// Represents bet on a four of a kind
-        if (predicted_outcome == 5) {
-            multiplier_denominator = 624;
-        };
-        /// Represents bet on a straight
-        if (predicted_outcome == 6) {
-            multiplier_denominator = 10240;
-        };
-        /// Represents bet on a flush
-        if (predicted_outcome == 7) {
-            multiplier_denominator = 5144;
-        };
-        /// Represents bet on a straight flush
-        if (predicted_outcome == 8) {
-            multiplier_denominator = 40;
-        };
-        /// Represents bet on a royal flush
-        if (predicted_outcome == 9) {
-            multiplier_denominator = 4;
-        };
-        let bet_multiplier = vector::empty<u64>();
-        vector::push_back<u64>(bet_multiplier, multiplier_numerator);
-        vector::push_back<u64>(bet_multiplier, multiplier_denominator);
-        bet_multiplier
-    }
-
-
-    // assert statements
-
-    /// Checks that the predicted outcome is valid (i.e. in the range 1-9)
-    fun assert_predicted_outcome_is_valid(predicted_outcome: u8) {
-        assert!(predicted_outcome >= 0 && predicted_outcome <= 9, EPredictedOutcomeOutOfRange
-    }
-
-    /// Checks that the bets are valid
+    /// Asserts that the number of bets and predicted outcomes are equal in length, non-empty, and non-zero
+    /// * multiplier: the multiplier of the bet
+    /// * bet_amounts: the amounts the player bets
+    /// * predicted_outcome: the numbers the player predicts for each bet
     fun assert_bets_are_valid(bet_amounts: &vector<u64>, predicted_outcomes: &vector<u8>) {
         assert!(vector::length(bet_amounts) == vector::length(predicted_outcomes),
             ENumberOfBetsDoesNotMatchNumberOfPredictedOutcomes);
         assert!(vector::length(bet_amounts) > 0, ENumberOfBetsIsZero);
+        assert!(vector::all(predicted_outcomes, |outcome| { *outcome <= ROYALFLUSH}), EPredictedOutcomeOutOfRange);
         assert!(vector::all(bet_amounts, |amount| { *amount > 0 }), EBetAmountIsZero);
     }
-
-
-
-    // test functions
-
-    #[test_only]
-    public fun test_deal_cards(
-        player: &signer,
-        bet_amounts: vector<u64>,
-        predicted_outcomes: vector<u8>,
-        cards_dealt: vector<Card>,
-        result: vector<u8>
-    ) {
-       deal_cards_impl(player, bet_amounts, predicted_outcomes, cards_dealt, result);
-    }
 }
+
+
+
+
+
+
