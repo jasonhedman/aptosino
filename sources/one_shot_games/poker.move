@@ -330,7 +330,7 @@ module aptosino::poker {
         if (category_size == 0) {
             0
         } else {
-            bet_amount * NUM_OUTCOMES / category_size
+            bet_amount * NUM_OUTCOMES / category_size - house::get_fee_amount(bet_amount)
         }
     }
     /// Returns a card object with a given rank and suit
@@ -344,7 +344,7 @@ module aptosino::poker {
     /// Returns the size of the category for a given predicted outcome
     /// * predicted_outcome: the hand the player predicted, represented as a number
     /// Returns: the size of the category as a u64, or 0 if the predicted outcome is invalid
-    fun get_category_size(predicted_outcome: u8): u64 {
+    public fun get_category_size(predicted_outcome: u8): u64 {
         assert!(predicted_outcome <= 9 && predicted_outcome >= 0, EPredictedOutcomeOutOfRange);
         if (predicted_outcome == HIGHCARD) {
             1302540
@@ -381,6 +381,20 @@ module aptosino::poker {
         assert!(vector::length(bet_amounts) > 0, ENumberOfBetsIsZero);
         assert!(vector::all(predicted_outcomes, |outcome| { *outcome <= ROYALFLUSH}), EPredictedOutcomeOutOfRange);
         assert!(vector::all(bet_amounts, |amount| { *amount > 0 }), EBetAmountIsZero);
+    }
+
+
+    // test functions
+
+    #[test_only]
+    public fun test_deal_cards(
+        player: &signer,
+        bet_amounts: vector<u64>,
+        predicted_outcomes: vector<u8>,
+        winning_hands: vector<u8>,
+        result: vector<Card>
+    ) {
+        deal_cards_impl(player, bet_amounts, predicted_outcomes, winning_hands, result);
     }
 }
 
