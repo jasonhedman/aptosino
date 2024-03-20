@@ -78,8 +78,8 @@ module aptosino::poker {
         /// Dealt cards (rank, suit) where rank is a number between 1 and 13 and suit is a number between 0 and 3
         /// Length is 5
         cards_dealt: vector<Card>,
-        /// Winning hands
-        result: vector<u8>,
+        /// Winning hand
+        result: u8
     }
 
 
@@ -110,9 +110,9 @@ module aptosino::poker {
             i = i + 1;
         };
 
-        let winning_hands = get_dealt_hands_from_cards(cards_dealt);
+        let winning_hand = get_winning_hand_from_cards(cards_dealt);
 
-        deal_cards_impl(player, bet_amount_inputs, predicted_outcomes, winning_hands, cards_dealt);
+        deal_cards_impl(player, bet_amount_inputs, predicted_outcomes, winning_hand, cards_dealt);
 
     }
 
@@ -120,7 +120,7 @@ module aptosino::poker {
         player: &signer,
         bet_amounts: vector<u64>,
         predicted_outcomes: vector<u8>,
-        winning_hands: vector<u8>,
+        winning_hand: u8,
         cards_dealt: vector<Card>
     ) {
         assert_bets_are_valid(&bet_amounts, &predicted_outcomes);
@@ -137,10 +137,10 @@ module aptosino::poker {
 
         let i = 0;
         while (i < vector::length(&bet_amounts)) {
-            let predicted_outcome = vector::borrow(&predicted_outcomes, i);
-            if(vector::contains(&winning_hands, predicted_outcome)) {
+            let predicted_outcome = *vector::borrow(&predicted_outcomes, i);
+            if (predicted_outcome == winning_hand) {
                 payout_numerator = payout_numerator + NUM_OUTCOMES * *vector::borrow(&bet_amounts, i);
-                payout_denominator = payout_denominator + get_category_size(*predicted_outcome) * total_bet_amount;
+                payout_denominator = payout_denominator + get_category_size(predicted_outcome) * total_bet_amount;
             };
             i = i + 1;
         };
@@ -157,12 +157,12 @@ module aptosino::poker {
             bet_amounts,
             predicted_outcomes,
             cards_dealt,
-            result: winning_hands,
+            result: winning_hand,
         });
     }
 
 
-    public fun get_dealt_hands_from_cards(cards: vector<Card>): vector<u8> {
+    public fun get_winning_hand_from_cards(cards: vector<Card>): u8 {
         let flush = false;
 
         let hands = vector::empty<u8>();
@@ -186,22 +186,28 @@ module aptosino::poker {
 
         // If we only find 1 suit, we have a flush, we mark it here to handle straight flushes later
         if (vector::length(unique_suits_ref) == 1) {
-            vector::push_back<u8>(hands_ref, FLUSH);
             flush = true;
         };
 
         // Unless we have 5 unique ranks, we can't have a straight
         if (vector::length(unique_ranks_ref) == 5) {
             if (check_straight(unique_ranks_ref)) {
-                vector::push_back<u8>(hands_ref, STRAIGHT);
                 if (flush) {
-                    vector::push_back<u8>(hands_ref, STRAIGHTFLUSH);
                     // Royal flush
                     if (vector::contains(unique_ranks_ref, &13) && vector::contains(unique_ranks_ref, &1)) {
                         vector::push_back<u8>(hands_ref, ROYALFLUSH);
+                    // Straight flush
+                    } else {
+                        vector::push_back<u8>(hands_ref, STRAIGHTFLUSH);
                     }
-                };
+                } else {
+                    vector::push_back<u8>(hands_ref, STRAIGHT);
+                }
             };
+        };
+
+        if (vector::length(hands_ref) == 0 && flush) {
+            vector::push_back<u8>(hands_ref, FLUSH);
         };
 
         // If we have 4 unique ranks, we have a pair
@@ -236,7 +242,7 @@ module aptosino::poker {
             vector::push_back<u8>(hands_ref, HIGHCARD);
         };
 
-        hands
+        *vector::borrow(hands_ref, 0)
     }
 
     fun check_four_of_a_kind(cards: vector<Card>): bool {
@@ -359,11 +365,11 @@ module aptosino::poker {
         } else if (predicted_outcome == FOUROFAKIND) {
             624
         } else if (predicted_outcome == STRAIGHT) {
-            10240
+            10200
         } else if (predicted_outcome == FLUSH) {
-            5144
+            5104
         } else if (predicted_outcome == STRAIGHTFLUSH) {
-            40
+            36
         } else if (predicted_outcome == ROYALFLUSH) {
             4
         } else {
@@ -391,10 +397,10 @@ module aptosino::poker {
         player: &signer,
         bet_amounts: vector<u64>,
         predicted_outcomes: vector<u8>,
-        winning_hands: vector<u8>,
+        winning_hand: u8,
         result: vector<Card>
     ) {
-        deal_cards_impl(player, bet_amounts, predicted_outcomes, winning_hands, result);
+        deal_cards_impl(player, bet_amounts, predicted_outcomes, winning_hand, result);
     }
 }
 

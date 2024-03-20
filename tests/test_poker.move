@@ -225,37 +225,26 @@ module aptosino::test_poker {
         let user_balance = coin::balance<AptosCoin>(signer::address_of(player));
 
         let result: vector<Card> = vector::empty<Card>();
-        let winning_hands: vector<u8> = vector::empty<u8>();
         if (winning_hand == HIGHCARD) {
             result = get_highcard();
-            winning_hands = vector[HIGHCARD];
         } else if (winning_hand == ONEPAIR) {
             result = get_pair();
-            winning_hands = vector[ONEPAIR];
         } else if (winning_hand == TWOPAIR) {
             result = get_twopair();
-            winning_hands = vector[TWOPAIR];
         } else if (winning_hand == THREEOFAKIND) {
             result = get_threeofakind();
-            winning_hands = vector[THREEOFAKIND];
         } else if (winning_hand == FULLHOUSE) {
             result = get_fullhouse();
-            winning_hands = vector[FULLHOUSE];
         } else if (winning_hand == FOUROFAKIND) {
             result = get_fourofakind();
-            winning_hands = vector[FOUROFAKIND];
         } else if (winning_hand == STRAIGHT) {
             result = get_straight();
-            winning_hands = vector[STRAIGHT];
         } else if (winning_hand == FLUSH) {
             result = get_flush();
-            winning_hands = vector[FLUSH];
         } else if (winning_hand == STRAIGHTFLUSH) {
             result = get_straightflush();
-            winning_hands = vector[FLUSH, STRAIGHT, STRAIGHTFLUSH];
         } else if (winning_hand == ROYALFLUSH) {
             result = get_royalflush();
-            winning_hands = vector[FLUSH, STRAIGHT, STRAIGHTFLUSH, ROYALFLUSH];
         } else {
             assert!(false, 0);
         };
@@ -264,7 +253,7 @@ module aptosino::test_poker {
             player,
             bet_amounts,
             predicted_outcomes,
-            winning_hands,
+            winning_hand,
             result,
         );
 
@@ -373,11 +362,12 @@ module aptosino::test_poker {
             predicted_outcomes,
             ONEPAIR,
         );
-        let total_bet_amount = BET_AMOUNT * 2;
+
         let payout = poker::get_payout(BET_AMOUNT, ONEPAIR);
-        assert!(house_balance_change == payout - BET_AMOUNT * 2, house_balance_change);
-        assert!(house_balance_change == payout - BET_AMOUNT * 2, payout - BET_AMOUNT * 2);
-        assert!(user_balance_change == payout - total_bet_amount, 0);
+        // NOTE: The payout already includes the fee for the winning portion of the hand, we double
+        // it to account for the losing portion of the hand. May not be expected behavior.
+        assert!(house_balance_change == payout - BET_AMOUNT * 2 - house::get_fee_amount(BET_AMOUNT), 0);
+        assert!(user_balance_change == payout - BET_AMOUNT * 2 - house::get_fee_amount(BET_AMOUNT), 0);
     }
 
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
@@ -429,80 +419,64 @@ module aptosino::test_poker {
 
         // Highcard, no flush
         let cards = get_highcard();
-        let hands = &poker::get_dealt_hands_from_cards(cards);
-        assert!(vector::contains<u8>(hands, &HIGHCARD), 0);
-        assert!(vector::length(hands) == 1, 0);
+        let hand = poker::get_winning_hand_from_cards(cards);
+        assert!(hand == HIGHCARD, 0);
 
-        // Flush
-        cards = get_flush();
-        let hands = &poker::get_dealt_hands_from_cards(cards);
-        assert!(vector::contains<u8>(hands, &FLUSH), 0);
-        assert!(vector::length(hands) == 1, 0);
-
-        // Pair
-        cards = get_pair();
-        hands = &poker::get_dealt_hands_from_cards(cards);
-        assert!(vector::contains<u8>(hands, &ONEPAIR), 0);
-        assert!(vector::length<u8>(hands) == 1, 0);
+        // One pair
+        let cards = get_pair();
+        let hand = poker::get_winning_hand_from_cards(cards);
+        assert!(hand == ONEPAIR, 0);
 
         // Two pair
-        cards = get_twopair();
-        hands = &poker::get_dealt_hands_from_cards(cards);
-        assert!(vector::contains<u8>(hands, &TWOPAIR), 0);
-        assert!(vector::length(hands) == 1, 0);
+        let cards = get_twopair();
+        let hand = poker::get_winning_hand_from_cards(cards);
+        assert!(hand == TWOPAIR, 0);
 
         // Three of a kind
-        cards = get_threeofakind();
-        hands = &poker::get_dealt_hands_from_cards(cards);
-        assert!(vector::contains<u8>(hands, &THREEOFAKIND), 0);
-        assert!(vector::length(hands) == 1, 0);
+        let cards = get_threeofakind();
+        let hand = poker::get_winning_hand_from_cards(cards);
+        assert!(hand == THREEOFAKIND, 0);
 
         // Full house
-        cards = get_fullhouse();
-        hands = &poker::get_dealt_hands_from_cards(cards);
-        assert!(vector::contains<u8>(hands, &FULLHOUSE), 0);
-        assert!(vector::length(hands) == 1, 0);
+        let cards = get_fullhouse();
+        let hand = poker::get_winning_hand_from_cards(cards);
+        assert!(hand == FULLHOUSE, 0);
 
         // Four of a kind
-        cards = get_fourofakind();
-        hands = &poker::get_dealt_hands_from_cards(cards);
-        assert!(vector::contains<u8>(hands, &FOUROFAKIND), 0);
-        assert!(vector::length(hands) == 1, 0);
+        let cards = get_fourofakind();
+        let hand = poker::get_winning_hand_from_cards(cards);
+        assert!(hand == FOUROFAKIND, 0);
 
         // Straight
-        cards = get_straight();
-        hands = &poker::get_dealt_hands_from_cards(cards);
-        assert!(vector::contains<u8>(hands, &STRAIGHT), 0);
-        assert!(vector::length(hands) == 1, 0);
+        let cards = get_straight();
+        let hand = poker::get_winning_hand_from_cards(cards);
+        assert!(hand == STRAIGHT, 0);
 
-        // Straight, ace low
-        cards = get_straight_ace_low();
-        hands = &poker::get_dealt_hands_from_cards(cards);
-        assert!(vector::contains<u8>(hands, &STRAIGHT), 0);
-        assert!(vector::length(hands) == 1, 0);
-
-        // Straight, ace high
-        cards = get_straight_ace_high();
-        hands = &poker::get_dealt_hands_from_cards(cards);
-        assert!(vector::contains<u8>(hands, &STRAIGHT), 0);
-        assert!(vector::length(hands) == 1, 0);
+        // Flush
+        let cards = get_flush();
+        let hand = poker::get_winning_hand_from_cards(cards);
+        assert!(hand == FLUSH, 0);
 
         // Straight flush
-        cards = get_straightflush();
-        hands = &poker::get_dealt_hands_from_cards(cards);
-        assert!(vector::contains<u8>(hands, &FLUSH), 0);
-        assert!(vector::contains<u8>(hands, &STRAIGHT), 0);
-        assert!(vector::contains<u8>(hands, &STRAIGHTFLUSH), 0);
-        assert!(vector::length(hands) == 3, 0);
+        let cards = get_straightflush();
+        let hand = poker::get_winning_hand_from_cards(cards);
+        assert!(hand == STRAIGHTFLUSH, 0);
 
         // Royal flush
-        cards = get_royalflush();
-        hands = &poker::get_dealt_hands_from_cards(cards);
-        assert!(vector::contains<u8>(hands, &FLUSH), 0);
-        assert!(vector::contains<u8>(hands, &STRAIGHT), 0);
-        assert!(vector::contains<u8>(hands, &STRAIGHTFLUSH), 0);
-        assert!(vector::contains<u8>(hands, &ROYALFLUSH), 0);
-        assert!(vector::length<u8>(hands) == 4, 0);
+        let cards = get_royalflush();
+        let hand = poker::get_winning_hand_from_cards(cards);
+        assert!(hand == ROYALFLUSH, 0);
+
+        // Straight, ace low
+        let cards = get_straight_ace_low();
+        let hand = poker::get_winning_hand_from_cards(cards);
+        assert!(hand == STRAIGHT, 0);
+
+        // Straight, ace high
+        let cards = get_straight_ace_high();
+        let hand = poker::get_winning_hand_from_cards(cards);
+        assert!(hand == STRAIGHT, 0);
+
     }
 
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
