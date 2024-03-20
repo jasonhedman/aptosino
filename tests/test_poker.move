@@ -477,7 +477,7 @@ module aptosino::test_poker {
 
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
     #[expected_failure(abort_code= poker::ENumberOfBetsDoesNotMatchNumberOfPredictedOutcomes)]
-    fun test_spin_wheel_num_predictions_not_num_bets(framework: &signer, aptosino: &signer, player: &signer) {
+    fun test_deal_cards_num_predictions_not_num_bets(framework: &signer, aptosino: &signer, player: &signer) {
         test_helpers::setup_house_with_player(
             framework,
             aptosino,
@@ -501,7 +501,7 @@ module aptosino::test_poker {
 
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
     #[expected_failure(abort_code= poker::ENumberOfBetsDoesNotMatchNumberOfPredictedOutcomes)]
-    fun test_spin_wheel_bet_amount_empty(framework: &signer, aptosino: &signer, player: &signer) {
+    fun test_deal_cards_bet_amount_empty(framework: &signer, aptosino: &signer, player: &signer) {
         test_helpers::setup_house_with_player(
             framework,
             aptosino,
@@ -525,7 +525,7 @@ module aptosino::test_poker {
 
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
     #[expected_failure(abort_code= poker::EBetAmountIsZero)]
-    fun test_spin_wheel_bet_amount_zero(framework: &signer, aptosino: &signer, player: &signer) {
+    fun test_deal_cards_bet_amount_zero(framework: &signer, aptosino: &signer, player: &signer) {
         test_helpers::setup_house_with_player(
             framework,
             aptosino,
@@ -549,7 +549,7 @@ module aptosino::test_poker {
 
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
     #[expected_failure(abort_code= poker::ENumberOfBetsDoesNotMatchNumberOfPredictedOutcomes)]
-    fun test_spin_wheel_empty_predictions(framework: &signer, aptosino: &signer, player: &signer) {
+    fun test_deal_cards_empty_predictions(framework: &signer, aptosino: &signer, player: &signer) {
         test_helpers::setup_house_with_player(
             framework,
             aptosino,
@@ -573,7 +573,7 @@ module aptosino::test_poker {
 
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
     #[expected_failure(abort_code= poker::EPredictedOutcomeOutOfRange)]
-    fun test_spin_wheel_invalid_prediction(framework: &signer, aptosino: &signer, player: &signer) {
+    fun test_deal_cards_invalid_prediction(framework: &signer, aptosino: &signer, player: &signer) {
         test_helpers::setup_house_with_player(
             framework,
             aptosino,
