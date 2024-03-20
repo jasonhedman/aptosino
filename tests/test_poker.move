@@ -351,6 +351,36 @@ module aptosino::test_poker {
     }
 
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
+    fun deal_split_win_lose(framework: &signer, aptosino: &signer, player: &signer) {
+        test_helpers::setup_house_with_player(
+            framework,
+            aptosino,
+            player,
+            INITIAL_DEPOSIT,
+            MIN_BET,
+            MAX_BET,
+            MAX_MULTIPLIER,
+            FEE_BPS,
+        );
+
+        poker::approve_game(aptosino);
+
+        let bet_amounts: vector<u64> = vector[BET_AMOUNT, BET_AMOUNT];
+        let predicted_outcomes: vector<u8> = vector[HIGHCARD, ONEPAIR];
+        let (house_balance_change, user_balance_change) = deal_test(
+            player,
+            bet_amounts,
+            predicted_outcomes,
+            ONEPAIR,
+        );
+        let total_bet_amount = BET_AMOUNT * 2;
+        let payout = poker::get_payout(BET_AMOUNT, ONEPAIR);
+        assert!(house_balance_change == payout - BET_AMOUNT * 2, house_balance_change);
+        assert!(house_balance_change == payout - BET_AMOUNT * 2, payout - BET_AMOUNT * 2);
+        assert!(user_balance_change == payout - total_bet_amount, 0);
+    }
+
+    #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
     fun test_get_payout(framework: &signer, aptosino: &signer) {
         test_helpers::setup_house(
             framework,
