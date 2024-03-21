@@ -305,11 +305,10 @@ module aptosino::poker {
 
 
     fun check_straight(ranks: &vector<u8>): bool {
-        // no sorting needed, we know we have 5 unique ranks
-        let ace = vector::contains(ranks, &1);
-        let king = vector::contains(ranks, &13);
-        if (ace && king) {
-            (vector::contains(ranks, &10) && vector::contains(ranks, &11) && vector::contains(ranks, &12))
+        // the weird one (1, 10, 11, 12, 13)
+        if ((vector::contains(ranks, &10) && vector::contains(ranks, &11) && vector::contains(ranks, &12) &&
+            vector::contains(ranks, &13) && vector::contains(ranks, &1))) {
+            return true
         } else {
             let min = 14;
             let max = 0;
@@ -333,11 +332,7 @@ module aptosino::poker {
     /// * predicted_outcome: the numbers the player predicts
     public fun get_payout(bet_amount: u64, predicted_outcome: u8): u64 {
         let category_size = get_category_size(predicted_outcome);
-        if (category_size == 0) {
-            0
-        } else {
-            bet_amount * NUM_OUTCOMES / category_size - house::get_fee_amount(bet_amount)
-        }
+        bet_amount * NUM_OUTCOMES / category_size - house::get_fee_amount(bet_amount)
     }
     /// Returns a card object with a given rank and suit
     /// * rank: the rank of the card, represented as a number
@@ -370,10 +365,9 @@ module aptosino::poker {
             5104
         } else if (predicted_outcome == STRAIGHTFLUSH) {
             36
-        } else if (predicted_outcome == ROYALFLUSH) {
-            4
         } else {
-            0
+        // predicted_outcome == ROYALFLUSH
+            4
         }
     }
 
