@@ -329,7 +329,7 @@ module aptosino::test_blackjack {
             vector[vector[6, 0], vector[2, 0]],
             vector[vector[3, 0]],
         );
-        blackjack::hit(player);
+        blackjack::test_hit_entry(player);
 
         assert!(vector::length(&blackjack::get_player_cards(blackjack_hand_obj)) == 3, 0);
     }
@@ -350,7 +350,7 @@ module aptosino::test_blackjack {
             vector[vector[7, 0]],
         );
         blackjack::test_deal_to_house(blackjack_hand_obj, vector[10, 0]);
-        blackjack::stand(player);
+        blackjack::test_stand_entry(player);
 
         assert!(coin::balance<AptosCoin>(player_address) == player_balance_before + BET_AMOUNT - fee, 0);
         assert!(house::get_house_balance() == house_balance_before - BET_AMOUNT + fee, 0);

@@ -182,7 +182,7 @@ module aptosino::test_mines {
     fun test_select_cell_entry(framework: &signer, aptosino: &signer, player: &signer) {
         setup_mines(framework, aptosino, player);
         mines::create_board(player, BET_AMOUNT, 5, 5, 1);
-        mines::select_cell(player, 0, 0);
+        mines::test_select_cell_entry(player, 0, 0);
     }
     
     #[test(framework=@aptos_framework, aptosino=@aptosino, player=@0x101)]
@@ -190,7 +190,7 @@ module aptosino::test_mines {
     fun test_select_cell_row_invalid(framework: &signer, aptosino: &signer, player: &signer) {
         setup_mines(framework, aptosino, player);
         mines::create_board(player, BET_AMOUNT, 5, 5, 1);
-        mines::select_cell(player, 5, 4);
+        mines::test_select_cell_entry(player, 5, 4);
     }
     
     #[test(framework=@aptos_framework, aptosino=@aptosino, player=@0x101)]
@@ -198,7 +198,7 @@ module aptosino::test_mines {
     fun test_select_cell_col_invalid(framework: &signer, aptosino: &signer, player: &signer) {
         setup_mines(framework, aptosino, player);
         mines::create_board(player, BET_AMOUNT, 5, 5, 1);
-        mines::select_cell(player, 4, 5);
+        mines::test_select_cell_entry(player, 4, 5);
     }
     
     #[test(framework=@aptos_framework, aptosino=@aptosino, player=@0x101)]
@@ -207,7 +207,7 @@ module aptosino::test_mines {
         setup_mines(framework, aptosino, player);
         mines::create_board(player, BET_AMOUNT, 1, 3, 1);
         mines::test_select_gem(signer::address_of(player), 0, 0);
-        mines::select_cell(player, 0, 0);
+        mines::test_select_cell_entry(player, 0, 0);
     }
     
     #[test(framework=@aptos_framework, aptosino=@aptosino, player=@0x101)]

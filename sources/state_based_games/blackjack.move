@@ -99,14 +99,14 @@ module aptosino::blackjack {
     /// Hits the player's hand
     /// * player: the player signer
     /// * blackjack_hand_obj: the blackjack hand object
-    public entry fun hit(player: &signer) acquires BlackjackHand {
+    entry fun hit(player: &signer) acquires BlackjackHand {
         hit_impl(get_player_hand(signer::address_of(player)), deal_card());
     }
 
     /// Stands the player's hand
     /// * player: the player signer
     /// * blackjack_hand_obj: the blackjack hand object
-    public entry fun stand(player: &signer) acquires BlackjackHand {
+    entry fun stand(player: &signer) acquires BlackjackHand {
         resolve_game(get_player_hand(signer::address_of(player)));
     }
     
@@ -332,6 +332,16 @@ module aptosino::blackjack {
     #[test_only]
     public fun test_hit(blackjack_hand_obj: Object<BlackjackHand>, new_card: vector<u8>) acquires BlackjackHand {
         hit_impl(blackjack_hand_obj, new_card);
+    }
+    
+    #[test_only]
+    public fun test_hit_entry(player: &signer) acquires BlackjackHand {
+        hit(player);
+    }
+    
+    #[test_only]
+    public fun test_stand_entry(player: &signer) acquires BlackjackHand {
+        stand(player);
     }
     
     #[test_only]

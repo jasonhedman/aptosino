@@ -3,7 +3,7 @@ name = 'AptosinoSandbox'
 version = '1.0.0'
 
 [addresses]
-aptosino = "b2104bc99e57db595ad246a46ff3d57adce17fb33058703ae770c302d0a88b63"
+aptosino = "bfb4153132b66aa462b33d2a74c52a1b7fe711758af32f5b66dbff725a10f630"
 
 [dependencies.AptosFramework]
 git = "https://github.com/aptos-labs/aptos-core.git"

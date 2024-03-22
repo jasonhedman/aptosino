@@ -59,7 +59,7 @@ module aptosino::roulette {
     /// * player: the signer of the player account
     /// * bet_amount_inputs: the amount to bet on each predicted outcome
     /// * predicted_outcomes: the numbers the player predicts for each corresponding bet
-    public entry fun spin_wheel(
+    entry fun spin_wheel(
         player: &signer,
         bet_amount_inputs: vector<u64>,
         predicted_outcomes: vector<vector<u8>>,
@@ -165,5 +165,14 @@ module aptosino::roulette {
         result: u8
     ) {
         spin_wheel_impl(player, bet_amounts, predicted_outcomes, result);
+    }
+    
+    #[test_only]
+    public fun test_spin_wheel_entry(
+        player: &signer,
+        bet_amounts: vector<u64>,
+        predicted_outcomes: vector<vector<u8>>,
+    ) {
+        spin_wheel(player, bet_amounts, predicted_outcomes);
     }
 }

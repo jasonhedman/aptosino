@@ -143,7 +143,7 @@ module aptosino::mines {
     /// * mines_board: the mines board
     /// * predicted_outcomes: the coordinates of the cells to select
     /// * bet_amount: the amount to bet
-    public entry fun select_cell(
+    entry fun select_cell(
         player: &signer,
         predicted_row: u8,
         predicted_col: u8,
@@ -398,5 +398,10 @@ module aptosino::mines {
         predicted_col: u8,
     ) acquires MinesBoard {
         select_gem(player_address, predicted_row, predicted_col);
+    }
+    
+    #[test_only]
+    public fun test_select_cell_entry(player: &signer, predicted_row: u8, predicted_col: u8) acquires MinesBoard {
+        select_cell(player, predicted_row, predicted_col);
     }
 }

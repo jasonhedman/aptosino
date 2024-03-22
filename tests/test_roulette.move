@@ -236,6 +236,6 @@ module aptosino::test_roulette {
         
         let predicted_outcomes: vector<vector<u8>> = vector[get_predicted_outcome(6)];
         
-        roulette::spin_wheel(player, bet_amounts, predicted_outcomes);
+        roulette::test_spin_wheel_entry(player, bet_amounts, predicted_outcomes);
     }
 }

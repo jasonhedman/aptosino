@@ -49,7 +49,7 @@ module aptosino::dice {
     /// * bet_coins: the coins to bet
     /// * multiplier: the multiplier of the bet (the payout is bet * multiplier)
     /// * predicted_outcome: the number the player predicts (must be less than the multiplier)
-    public entry fun roll_dice(
+    entry fun roll_dice(
         player: &signer, 
         bet_amount_input: u64,
         max_outcome: u64,
@@ -128,5 +128,15 @@ module aptosino::dice {
         result: u64
     ) {
         roll_dice_impl(player, bet_amount, max_outcome, predicted_outcome, result);
+    }
+    
+    #[test_only]
+    public fun test_roll_dice_entry(
+        player: &signer, 
+        bet_amount: u64,
+        max_outcome: u64,
+        predicted_outcome: u64
+    ) {
+        roll_dice(player, bet_amount, max_outcome, predicted_outcome);
     }
 }

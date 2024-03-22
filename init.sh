@@ -5,8 +5,8 @@ aptos init \
   
 aptos account fund-with-faucet \
   --faucet-url 'https://faucet.random.aptoslabs.com' \
-  --account b2104bc99e57db595ad246a46ff3d57adce17fb33058703ae770c302d0a88b63 \
-  --amount 20000000000
+  --account 0xbfb4153132b66aa462b33d2a74c52a1b7fe711758af32f5b66dbff725a10f630 \
+  --amount 200000000000000
   
 aptos move publish \
   --bytecode-version 6 \
@@ -15,6 +15,25 @@ aptos move publish \
   
 aptos move run \
   --function-id default::house::init \
-  --args u64:20000000000 u64:10000000 u64:2000000000 u64:50 u64:200
+  --args u64:20000000000 u64:10000000 u64:2000000000 u64:50 u64:100
+  
+aptos move run \
+  --function-id default::dice::approve_game
+  
+aptos move run \
+  --function-id default::roulette::approve_game
+  
+aptos move run \
+  --function-id default::mines::init
+  
+aptos move run \
+  --function-id default::mines::approve_game
+  
+aptos move run \
+  --function-id default::blackjack::approve_game
+  
+aptos move run \
+  --function-id default::blackjack::init
+  
   
 alias aptos='~/aptos-core/target/release/aptos'

@@ -159,6 +159,6 @@ module aptosino::test_dice {
             FEE_BPS,
         );
         dice::approve_game(aptosino);
-        dice::roll_dice(player, BET_AMOUNT, 2, 1);
+        dice::test_roll_dice_entry(player, BET_AMOUNT, 2, 1);
     }
 }
