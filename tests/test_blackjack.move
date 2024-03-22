@@ -308,21 +308,6 @@ module aptosino::test_blackjack {
     }
 
     #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
-    #[expected_failure(abort_code=blackjack::EResolveNotValid)]
-    fun test_resolve_game_invalid(framework: &signer, aptosino: &signer, player: &signer) {
-        setup_blackjack(framework, aptosino, player);
-
-        let blackjack_hand_obj = blackjack::test_start_game(
-            player, 
-            BET_AMOUNT,
-            vector[vector[10, 0], vector[9, 0]],
-            vector[vector[10, 0]],
-        );
-
-        blackjack::test_resolve_game(blackjack_hand_obj);
-    }
-
-    #[test(framework = @aptos_framework, aptosino = @aptosino, player = @0x101)]
     fun test_start_game_entry(framework: &signer, aptosino: &signer, player: &signer) {
         setup_blackjack(framework, aptosino, player);
         let player_address = signer::address_of(player);

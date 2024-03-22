@@ -15,11 +15,6 @@ module aptosino::blackjack {
     const NUM_CARD_VALUES: u8 = 13;
     const NUM_CARD_SUITS: u8 = 4;
     
-    // error codes
-    
-    /// The resolve is not valid
-    const EResolveNotValid: u64 = 104;
-    
     // game type
     
     struct BlackjackGame has drop {}
@@ -183,12 +178,13 @@ module aptosino::blackjack {
     /// * blackjack_hand_obj: the blackjack hand object
     fun resolve_game(blackjack_hand_obj: Object<BlackjackHand>) acquires BlackjackHand {
         let hand_address = object::object_address(&blackjack_hand_obj);
-        assert_resolve_is_at_valid(borrow_global<BlackjackHand>(hand_address));
         
         // dealer hits until 17 or higher
-        while(calculate_hand_value(borrow_global<BlackjackHand>(hand_address).dealer_cards) < 17
-            && calculate_hand_value(borrow_global<BlackjackHand>(hand_address).dealer_cards) != 0) {
-            deal_to_house(blackjack_hand_obj, deal_card());
+        if(calculate_hand_value(borrow_global<BlackjackHand>(hand_address).player_cards) != 0) {
+            while(calculate_hand_value(borrow_global<BlackjackHand>(hand_address).dealer_cards) < 17
+                && calculate_hand_value(borrow_global<BlackjackHand>(hand_address).dealer_cards) != 0) {
+                deal_to_house(blackjack_hand_obj, deal_card());
+            };
         };
         
         let BlackjackHand {
@@ -319,19 +315,6 @@ module aptosino::blackjack {
             };
         });
         vector::fold(values, 0, |max, value| if(value <= 21 && value > max) { value } else { max })
-    }
-    
-    // assert statements
-    
-    /// Asserts that the dealer is at 17 or higher
-    /// * blackjack_hand: the blackjack hand to assert
-    fun assert_resolve_is_at_valid(blackjack_hand: &BlackjackHand) {
-        let player_hand_value = calculate_hand_value(blackjack_hand.player_cards);
-        let dealer_hand_value = calculate_hand_value(blackjack_hand.dealer_cards);
-        let player_blackjack = player_hand_value == 21 && vector::length(&blackjack_hand.player_cards) == 2;
-        let bust = player_hand_value == 0 || dealer_hand_value == 0;
-        let dealer_17_or_higher = calculate_hand_value(blackjack_hand.dealer_cards) >= 17;
-        assert!(player_blackjack || bust || dealer_17_or_higher, EResolveNotValid);
     }
     
     // functions

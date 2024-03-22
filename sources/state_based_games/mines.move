@@ -23,12 +23,10 @@ module aptosino::mines {
     const EMinesMachineInvalidCols: u64 = 102;
     /// The mines board has invalid mines
     const EMinesMachineInvalidMines: u64 = 103;
-    /// There are no more gems to reveal
-    const ENoMoreGems: u64 = 104;
     /// A predicted outcome is out of range
-    const EPredictedOutcomeOutOfRange: u64 = 105;
+    const EPredictedOutcomeOutOfRange: u64 = 104;
     /// The mines board has invalid mines
-    const ECellIsRevealed: u64 = 106;
+    const ECellIsRevealed: u64 = 105;
 
     // game type
 
@@ -163,21 +161,7 @@ module aptosino::mines {
     /// * player: the signer of the player account
     /// * mines_board_obj: the mines board object
     public entry fun cash_out(player: &signer) acquires MinesBoard {
-        let player_address = signer::address_of(player);
-        let mines_address = state_based_game::get_player_game_address<MinesGame>(player_address);
-        let mines_board = move_from<MinesBoard>(mines_address);
-        let MinesBoard {
-            gem_coordinates,
-            num_rows,
-            num_cols,
-            num_mines,
-        } = mines_board;
-        let (payout_numerator, payout_denominator) = payout_multiplier(
-            (num_rows as u64) * (num_cols as u64),
-            (num_mines as u64),
-            vector::length(&gem_coordinates)
-        );
-        state_based_game::resolve_game(player_address, payout_numerator, payout_denominator, MinesGame {});
+        cash_out_impl(signer::address_of(player));
     }
     
     // implementation functions
@@ -244,7 +228,30 @@ module aptosino::mines {
                 predicted_col,
             }
         );
+        if(remaining_gems(mines_board) == 0) {
+            cash_out_impl(player_address);
+        }
     }
+    
+    /// implementation of the cash out function for a player
+    /// * player_address: the address of the player
+    fun cash_out_impl(player_address: address) acquires MinesBoard {
+        let mines_address = state_based_game::get_player_game_address<MinesGame>(player_address);
+        let mines_board = move_from<MinesBoard>(mines_address);
+        let MinesBoard {
+            gem_coordinates,
+            num_rows,
+            num_cols,
+            num_mines,
+        } = mines_board;
+        let (payout_numerator, payout_denominator) = payout_multiplier(
+            (num_rows as u64) * (num_cols as u64),
+            (num_mines as u64),
+            vector::length(&gem_coordinates)
+        );
+        state_based_game::resolve_game(player_address, payout_numerator, payout_denominator, MinesGame {});
+    }
+    
 
     // getters
     
@@ -297,6 +304,13 @@ module aptosino::mines {
     /// * player_address: the address of the player
     public fun get_mines_board_object(player_address: address): Object<MinesBoard> {
         state_based_game::get_game_object<MinesGame, MinesBoard>(player_address)
+    }
+    
+    #[view]
+    /// Returns the bet amount for a player
+    /// * player_address: the address of the player
+    public fun get_bet_amount(player_address: address): u64 {
+        state_based_game::get_player_bet_amount<MinesGame>(player_address)
     }
 
     // private getters
@@ -351,7 +365,6 @@ module aptosino::mines {
     fun assert_predicted_outcome_is_valid(predicted_row: u8, predicted_col: u8, mines_board: &MinesBoard) {
         assert!(predicted_row < mines_board.num_rows, EPredictedOutcomeOutOfRange);
         assert!(predicted_col < mines_board.num_cols, EPredictedOutcomeOutOfRange);
-        assert!(remaining_gems(mines_board) > 0, ENoMoreGems);
         assert!(!vector::contains<vector<u8>>(
             &mines_board.gem_coordinates, 
             &vector[predicted_row, predicted_col]

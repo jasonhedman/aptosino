@@ -38,7 +38,7 @@ module aptosino::test_house {
         assert!(house::get_max_bet() == MAX_BET, 0);
         assert!(house::get_max_multiplier() == MAX_MULTIPLIER, 0);
         assert!(house::get_fee_bps() == FEE_BPS, 0);
-        assert!(house::get_house_shares_supply() == INITIAL_DEPOSIT, 0);
+        assert!(house::get_house_shares_supply() == (INITIAL_DEPOSIT as u128), 0);
     }
 
     #[test(framework = @aptos_framework, aptosino = @0x101)]
@@ -314,7 +314,7 @@ module aptosino::test_house {
         aptos_coin::mint(framework, signer::address_of(aptosino), deposit_amount);
         house::deposit(aptosino, deposit_amount);
         assert!(house::get_house_balance() == INITIAL_DEPOSIT + deposit_amount, 0);
-        assert!(house::get_house_shares_supply() == INITIAL_DEPOSIT + deposit_amount, 0);
+        assert!(house::get_house_shares_supply() == ((INITIAL_DEPOSIT + deposit_amount) as u128), 0);
         assert!(coin::balance<HouseShares>(@aptosino) == INITIAL_DEPOSIT + deposit_amount, 0);
     }
 
@@ -356,7 +356,7 @@ module aptosino::test_house {
         aptos_coin::mint(framework, signer::address_of(aptosino), deposit_amount);
         house::deposit(aptosino, deposit_amount);
         assert!(house::get_house_balance() == INITIAL_DEPOSIT - payout + bet_amount + deposit_amount, 0);
-        assert!(house::get_house_shares_supply() == INITIAL_DEPOSIT + deposit_amount * INITIAL_DEPOSIT / house_balance_before, 0);
+        assert!(house::get_house_shares_supply() == ((INITIAL_DEPOSIT + deposit_amount * INITIAL_DEPOSIT / house_balance_before) as u128), 0);
     }
     
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
@@ -380,7 +380,7 @@ module aptosino::test_house {
         aptos_coin::mint(framework, signer::address_of(aptosino), deposit_amount);
         house::deposit(aptosino, deposit_amount);
         assert!(house::get_house_balance() == INITIAL_DEPOSIT + bet_amount + deposit_amount, 0);
-        assert!(house::get_house_shares_supply() == INITIAL_DEPOSIT + deposit_amount * INITIAL_DEPOSIT / house_balance_before, 0);
+        assert!(house::get_house_shares_supply() == ((INITIAL_DEPOSIT + deposit_amount * INITIAL_DEPOSIT / house_balance_before) as u128), 0);
     }
 
     #[test(framework = @aptos_framework, aptosino = @aptosino)]

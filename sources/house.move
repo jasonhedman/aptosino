@@ -298,8 +298,8 @@ module aptosino::house {
     
     #[view]
     /// Returns the number of house shares that have been minted
-    public fun get_house_shares_supply(): u64 {
-        (*option::borrow(&coin::supply<HouseShares>()) as u64)
+    public fun get_house_shares_supply(): u128 {
+        *option::borrow(&coin::supply<HouseShares>())
     }
     
     #[view]
@@ -310,7 +310,7 @@ module aptosino::house {
         if(house_balance == 0) {
             deposit_amount
         } else {
-            deposit_amount * get_house_shares_supply() / house_balance
+            ((deposit_amount as u128) * get_house_shares_supply() / (house_balance as u128) as u64)
         }
     }
 
@@ -319,10 +319,10 @@ module aptosino::house {
     /// withdraw shares_amount: the amount of house shares to burn
     public fun get_withdraw_amount_from_shares_amount(shares_amount: u64): u64 {
         let shares_supply = get_house_shares_supply();
-        if(shares_supply == 0 || shares_amount > shares_supply) {
+        if(shares_supply == 0 || (shares_amount as u128) > shares_supply) {
             0
         } else {
-            shares_amount * get_house_balance() / shares_supply
+            ((get_house_balance() as u128) * (shares_amount as u128) / shares_supply as u64)
         }
     }
     

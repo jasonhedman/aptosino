@@ -3,6 +3,9 @@ module aptosino::test_mines {
 
     use std::signer;
     use std::vector;
+    
+    use aptos_framework::aptos_coin::AptosCoin;
+    use aptos_framework::coin;
 
     use aptosino::test_helpers;
     use aptosino::house;
@@ -39,6 +42,7 @@ module aptosino::test_mines {
         assert!(mines::get_num_rows(player_address) == 5, 0);
         assert!(mines::get_num_cols(player_address) == 5, 0);
         assert!(mines::get_num_mines(player_address) == 1, 0);
+        assert!(mines::get_bet_amount(player_address) == BET_AMOUNT, 0);
         assert!(vector::length(&mines::get_gem_coordinates(player_address)) == 0, 0);
     }
     
@@ -198,20 +202,22 @@ module aptosino::test_mines {
     }
     
     #[test(framework=@aptos_framework, aptosino=@aptosino, player=@0x101)]
-    #[expected_failure(abort_code=mines::ENoMoreGems)]
-    fun test_select_cell_no_more_gems(framework: &signer, aptosino: &signer, player: &signer) {
-        setup_mines(framework, aptosino, player);
-        mines::create_board(player, BET_AMOUNT, 1, 2, 1);
-        mines::test_select_gem(signer::address_of(player), 0, 0);
-        mines::select_cell(player, 0, 1);
-    }
-    
-    #[test(framework=@aptos_framework, aptosino=@aptosino, player=@0x101)]
     #[expected_failure(abort_code=mines::ECellIsRevealed)]
     fun test_select_cell_revealed_cell(framework: &signer, aptosino: &signer, player: &signer) {
         setup_mines(framework, aptosino, player);
         mines::create_board(player, BET_AMOUNT, 1, 3, 1);
         mines::test_select_gem(signer::address_of(player), 0, 0);
         mines::select_cell(player, 0, 0);
+    }
+    
+    #[test(framework=@aptos_framework, aptosino=@aptosino, player=@0x101)]
+    fun test_select_last_gem(framework: &signer, aptosino: &signer, player: &signer) {
+        setup_mines(framework, aptosino, player);
+        mines::create_board(player, BET_AMOUNT, 1, 2, 1);
+        let player_address = signer::address_of(player);
+        let player_balance_before = coin::balance<AptosCoin>(player_address);
+        mines::test_select_gem(signer::address_of(player), 0, 0);
+        let fee = test_helpers::get_fee(BET_AMOUNT, FEE_BPS, FEE_DIVISOR);
+        assert!(coin::balance<AptosCoin>(player_address) - player_balance_before == BET_AMOUNT * 2 - fee, 0);
     }
 }

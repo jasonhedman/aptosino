@@ -5,10 +5,16 @@ aptos init \
   
 aptos account fund-with-faucet \
   --faucet-url 'https://faucet.random.aptoslabs.com' \
-  --account a3883496c894715e7d4efc28a32b123390bbe63137c5fa460529e79c1d7d8e68
+  --account b2104bc99e57db595ad246a46ff3d57adce17fb33058703ae770c302d0a88b63 \
+  --amount 20000000000
   
 aptos move publish \
   --bytecode-version 6 \
   --check-test-code \
   --node-api-key 'aptoslabs_ArSW7gjSpNM_9hJBSKCaM7AL5EFSgKjL9HXy8CDEZqVDE'
   
+aptos move run \
+  --function-id default::house::init \
+  --args u64:20000000000 u64:10000000 u64:2000000000 u64:50 u64:200
+  
+alias aptos='~/aptos-core/target/release/aptos'
