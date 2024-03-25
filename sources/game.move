@@ -14,8 +14,12 @@ module aptosino::game {
     const EGameNotApproved: u64 = 101;
     /// The bet amount is zero
     const EBetAmountIsZero: u64 = 102;
+    /// The bet amount is less than the minimum bet
+    const EBetAmountLessThanMinimum: u64 = 103;
+    /// The bet amount is greater than the maximum bet
+    const EBetAmountGreaterThanMaximum: u64 = 104;
     /// Player does not have enough balance to bet
-    const EPlayerInsufficientBalance: u64 = 103;
+    const EPlayerInsufficientBalance: u64 = 105;
     
     // structs
 
@@ -44,10 +48,11 @@ module aptosino::game {
     /// * _witness: an instance of the GameType struct
     public fun create_game<GameType: drop>(player: &signer, bet_amount: u64, _witness: GameType): Game {
         assert_game_is_approved<GameType>();
-        assert_bet_amount_is_greater_than_zero(bet_amount);
-        let player_address = signer::address_of(player);
+        assert_bet_is_valid(bet_amount);
         
+        let player_address = signer::address_of(player);
         assert_player_has_enough_balance(player_address, bet_amount);
+        
         Game {
             player_address,
             bet: coin::withdraw<AptosCoin>(player, bet_amount)
@@ -110,8 +115,10 @@ module aptosino::game {
     
     /// Asserts that the bet amount is greater than zero
     /// * amount: the amount to bet
-    fun assert_bet_amount_is_greater_than_zero(amount: u64) {
+    fun assert_bet_is_valid(amount: u64) {
         assert!(amount > 0, EBetAmountIsZero);
+        assert!(amount >= house::get_min_bet(), EBetAmountLessThanMinimum);
+        assert!(amount <= house::get_max_bet(), EBetAmountGreaterThanMaximum);
     }
 
     /// Asserts that the player has enough balance to bet the given amount

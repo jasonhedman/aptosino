@@ -192,6 +192,5 @@ module aptosino::state_based_game {
     fun assert_player_not_in_game<GameType: drop>(player: address) acquires GameMapping {
         assert!(!get_is_player_in_game<GameType>(player), EPlayerAlreadyInGame);
     }
-
     
 }
