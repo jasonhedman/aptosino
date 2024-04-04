@@ -5,6 +5,7 @@ module aptosino::test_roulette {
 
     use aptos_framework::coin;
     use aptos_framework::aptos_coin::AptosCoin;
+    use aptosino::roulette::RouletteGame;
     use aptosino::test_helpers;
 
     use aptosino::house;
@@ -47,8 +48,8 @@ module aptosino::test_roulette {
             MIN_BET,
             MAX_BET,
             MAX_MULTIPLIER,
-            FEE_BPS,
         );
+        roulette::approve_game(aptosino, FEE_BPS);
         let fee = test_helpers::get_fee(BET_AMOUNT, FEE_BPS, FEE_DIVISOR);
         
         let payout = roulette::get_payout(BET_AMOUNT, get_predicted_outcome(18));
@@ -80,10 +81,9 @@ module aptosino::test_roulette {
             MIN_BET,
             MAX_BET,
             MAX_MULTIPLIER,
-            FEE_BPS,
         );
         
-        roulette::approve_game(aptosino);
+        roulette::approve_game(aptosino, FEE_BPS);
 
         let house_balance = house::get_house_balance();
         let user_balance = coin::balance<AptosCoin>(signer::address_of(player));
@@ -147,7 +147,7 @@ module aptosino::test_roulette {
             predicted_outcomes,
             bet_2_slots - 1
         );
-        let payout_2 = BET_AMOUNT * 3 - house::get_fee_amount(total_bet_amount);
+        let payout_2 = BET_AMOUNT * 3 - house::get_fee_amount<RouletteGame>(total_bet_amount);
         
         assert!(house_balance_change == payout_2 - total_bet_amount, 0);
         assert!(user_balance_change == payout_2 - total_bet_amount, 0);
@@ -228,9 +228,8 @@ module aptosino::test_roulette {
             MIN_BET,
             MAX_BET,
             MAX_MULTIPLIER,
-            FEE_BPS,
         );
-        roulette::approve_game(aptosino);
+        roulette::approve_game(aptosino, FEE_BPS);
         
         let bet_amounts: vector<u64> = vector[BET_AMOUNT];
         

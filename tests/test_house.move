@@ -30,14 +30,12 @@ module aptosino::test_house {
             MIN_BET,
             MAX_BET,
             MAX_MULTIPLIER,
-            FEE_BPS,
         );
         assert!(house::get_admin_address() == signer::address_of(aptosino), 0);
         assert!(house::get_house_balance() == INITIAL_DEPOSIT, 0);
         assert!(house::get_min_bet() == MIN_BET, 0);
         assert!(house::get_max_bet() == MAX_BET, 0);
         assert!(house::get_max_multiplier() == MAX_MULTIPLIER, 0);
-        assert!(house::get_fee_bps() == FEE_BPS, 0);
         assert!(house::get_house_shares_supply() == (INITIAL_DEPOSIT as u128), 0);
     }
 
@@ -51,7 +49,6 @@ module aptosino::test_house {
             MIN_BET,
             MAX_BET,
             MAX_MULTIPLIER,
-            FEE_BPS,
         );
     }
 
@@ -65,13 +62,12 @@ module aptosino::test_house {
             MIN_BET,
             MAX_BET,
             MAX_MULTIPLIER,
-            FEE_BPS,
         );
     }
 
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     fun test_admin_functions(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER);
 
         let new_min_bet: u64 = 2_000_000;
         house::set_min_bet(aptosino, new_min_bet);
@@ -85,12 +81,6 @@ module aptosino::test_house {
         house::set_max_multiplier(aptosino, new_max_multiplier);
         assert!(house::get_max_multiplier() == new_max_multiplier, 0);
 
-        let new_fee_bps: u64 = 200;
-        house::set_fee_bps(aptosino, new_fee_bps);
-        assert!(house::get_fee_bps() == new_fee_bps, 0);
-        let bet_amount: u64 = 1_000_000;
-        assert!(house::get_fee_amount(bet_amount) == test_helpers::get_fee(bet_amount, new_fee_bps, FEE_DIVISOR), 0);
-
         let new_admin_address = @0x101;
         house::set_admin(aptosino, new_admin_address);
         assert!(house::get_admin_address() == new_admin_address, 0);
@@ -99,57 +89,50 @@ module aptosino::test_house {
     #[test(framework = @aptos_framework, aptosino = @aptosino, non_admin = @0x101)]
     #[expected_failure(abort_code= house::ESignerNotAdmin)]
     fun test_set_min_bet_not_admin(framework: &signer, aptosino: &signer, non_admin: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER);
         house::set_min_bet(non_admin, 1);
     }
 
     #[test(framework = @aptos_framework, aptosino = @aptosino, non_admin = @0x101)]
     #[expected_failure(abort_code= house::ESignerNotAdmin)]
     fun test_set_max_bet_not_admin(framework: &signer, aptosino: &signer, non_admin: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER);
         house::set_max_bet(non_admin, 1);
     }
 
     #[test(framework = @aptos_framework, aptosino = @aptosino, non_admin = @0x101)]
     #[expected_failure(abort_code= house::ESignerNotAdmin)]
     fun test_set_max_multiplier_not_admin(framework: &signer, aptosino: &signer, non_admin: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER);
         house::set_max_multiplier(non_admin, 1);
-    }
-
-    #[test(framework = @aptos_framework, aptosino = @aptosino, non_admin = @0x101)]
-    #[expected_failure(abort_code= house::ESignerNotAdmin)]
-    fun test_set_fee_bps_not_admin(framework: &signer, aptosino: &signer, non_admin: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
-        house::set_fee_bps(non_admin, 1);
     }
     
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     fun test_approve_game(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
-        house::approve_game(aptosino, TestGame {});
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER);
+        house::approve_game(aptosino, FEE_BPS, TestGame {});
         assert!(house::is_game_approved<TestGame>(), 0);
     }
     
     #[test(framework = @aptos_framework, aptosino = @aptosino, non_admin = @0x101)]
     #[expected_failure(abort_code= house::ESignerNotAdmin)]
     fun test_approve_game_not_admin(framework: &signer, aptosino: &signer, non_admin: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
-        house::approve_game(non_admin, TestGame {});
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER);
+        house::approve_game(non_admin, FEE_BPS, TestGame {});
     }
     
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     #[expected_failure(abort_code= house::EGameAlreadyApproved)]
     fun test_approve_game_twice(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
-        house::approve_game(aptosino, TestGame {});
-        house::approve_game(aptosino, TestGame {});
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER);
+        house::approve_game(aptosino, FEE_BPS, TestGame {});
+        house::approve_game(aptosino, FEE_BPS, TestGame {});
     }
     
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     fun test_revoke_game(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
-        house::approve_game(aptosino, TestGame {});
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER);
+        house::approve_game(aptosino, FEE_BPS, TestGame {});
         house::revoke_game<TestGame>(aptosino);
         assert!(!house::is_game_approved<TestGame>(), 0);
     }
@@ -157,20 +140,35 @@ module aptosino::test_house {
     #[test(framework = @aptos_framework, aptosino = @aptosino, non_admin = @0x101)]
     #[expected_failure(abort_code= house::ESignerNotAdmin)]
     fun test_revoke_game_not_admin(framework: &signer, aptosino: &signer, non_admin: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER);
         house::revoke_game<TestGame>(non_admin);
     }
     
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     #[expected_failure(abort_code= house::EGameNotApproved)]
     fun test_revoke_game_not_approved(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER);
         house::revoke_game<TestGame>(aptosino);
     }
     
     fun setup_with_approved_game(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
-        house::approve_game(aptosino, TestGame {});
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER);
+        house::approve_game(aptosino, FEE_BPS, TestGame {});
+    }
+
+    #[test(framework = @aptos_framework, aptosino = @aptosino)]
+    fun test_set_fee_bps(framework: &signer, aptosino: &signer) {
+        setup_with_approved_game(framework, aptosino);
+        let new_fee_bps: u64 = 200;
+        house::set_fee_bps<TestGame>(aptosino, new_fee_bps);
+        assert!(house::get_fee_bps<TestGame>() == new_fee_bps, 0);
+    }
+
+    #[test(framework = @aptos_framework, aptosino = @aptosino, non_admin = @0x101)]
+    #[expected_failure(abort_code= house::ESignerNotAdmin)]
+    fun test_set_fee_bps_not_admin(framework: &signer, aptosino: &signer, non_admin: &signer) {
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER);
+        house::set_fee_bps<TestGame>(non_admin, 1);
     }
     
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
@@ -265,7 +263,7 @@ module aptosino::test_house {
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     #[expected_failure(abort_code= house::EGameNotApproved)]
     fun test_bet_game_not_approved(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER);
         let bet_amount: u64 = MIN_BET;
         let multiplier_numerator = 3;
         let multiplier_denominator = 2;
@@ -296,7 +294,7 @@ module aptosino::test_house {
 
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     fun test_get_deposit_and_withdraw_amounts(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER);
         
         assert!(house::get_house_shares_amount_from_deposit_amount(100) == 100, 0);
         assert!(house::get_withdraw_amount_from_shares_amount(100) == 100, 0);
@@ -309,7 +307,7 @@ module aptosino::test_house {
 
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     fun test_deposit(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER);
         let deposit_amount: u64 = 10_000_000;
         aptos_coin::mint(framework, signer::address_of(aptosino), deposit_amount);
         house::deposit(aptosino, deposit_amount);
@@ -321,7 +319,7 @@ module aptosino::test_house {
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     #[expected_failure(abort_code= house::EInsufficientBalance)]
     fun test_deposit_not_enough_coins(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER);
         let deposit_amount: u64 = 10_000_000;
         house::deposit(aptosino, deposit_amount);
     }
@@ -329,7 +327,7 @@ module aptosino::test_house {
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     #[expected_failure(abort_code=house::EAmountInvalid)]
     fun test_deposit_zero(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER);
         house::deposit(aptosino, 0);
     }
     
@@ -394,7 +392,7 @@ module aptosino::test_house {
     #[test(framework = @aptos_framework, aptosino = @aptosino)]
     #[expected_failure(abort_code=house::EAmountInvalid)]
     fun test_withdraw_zero(framework: &signer, aptosino: &signer) {
-        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER, FEE_BPS);
+        test_helpers::setup_house(framework, aptosino, INITIAL_DEPOSIT, MIN_BET, MAX_BET, MAX_MULTIPLIER);
         house::withdraw(aptosino, 0);
     }
     

@@ -98,8 +98,8 @@ module aptosino::mines {
 
     /// Approves the game
     /// * admin: the signer of the admin account
-    public entry fun approve_game(admin: &signer) {
-        house::approve_game(admin, MinesGame {});
+    public entry fun approve_game(admin: &signer, fee_bps: u64) {
+        house::approve_game(admin, fee_bps, MinesGame {});
     }
 
     // game functions

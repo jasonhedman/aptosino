@@ -2,7 +2,8 @@ module aptosino::roulette {
 
     use std::signer;
     use std::vector;
-    
+    use aptos_std::math64;
+
     use aptos_framework::event;
     use aptos_framework::randomness;
     use aptosino::game;
@@ -49,8 +50,8 @@ module aptosino::roulette {
 
     /// Approves the dice game on the house module
     /// * admin: the signer of the admin account
-    public entry fun approve_game(admin: &signer) {
-        house::approve_game<RouletteGame>(admin, RouletteGame {});
+    public entry fun approve_game(admin: &signer, fee_bps: u64) {
+        house::approve_game<RouletteGame>(admin, fee_bps, RouletteGame {});
     }
 
     // game functions
@@ -102,7 +103,6 @@ module aptosino::roulette {
             i = i + 1;
         };
         
-        
         game::resolve_game(
             game, 
             payout_numerator, 
@@ -126,7 +126,8 @@ module aptosino::roulette {
     /// * predicted_outcome: the numbers the player predicts
     public fun get_payout(bet_amount: u64, predicted_outcome: vector<u8>): u64 {
         if(vector::all(&predicted_outcome, |outcome| { *outcome < NUM_OUTCOMES })) {
-            bet_amount * (NUM_OUTCOMES as u64) / vector::length(&predicted_outcome) - house::get_fee_amount(bet_amount)
+            math64::mul_div(bet_amount, (NUM_OUTCOMES as u64), vector::length(&predicted_outcome)) 
+                - house::get_fee_amount<RouletteGame>(bet_amount)
         } else {
             0
         }

@@ -27,9 +27,8 @@ module aptosino::test_state_based_game {
             MIN_BET,
             MAX_BET,
             MAX_MULTIPLIER,
-            FEE_BPS
         );
-        house::approve_game(aptosino, TestGame {});
+        house::approve_game(aptosino, FEE_BPS, TestGame {});
         state_based_game::init(aptosino, TestGame {});
         assert!(state_based_game::get_is_game_initialized<TestGame>(), 0);
     }
@@ -44,9 +43,8 @@ module aptosino::test_state_based_game {
             MIN_BET,
             MAX_BET,
             MAX_MULTIPLIER,
-            FEE_BPS
         );
-        house::approve_game(aptosino, TestGame {});
+        house::approve_game(aptosino, FEE_BPS, TestGame {});
         state_based_game::init(non_aptosino, TestGame {});
     }
     
@@ -60,9 +58,8 @@ module aptosino::test_state_based_game {
             MIN_BET,
             MAX_BET,
             MAX_MULTIPLIER,
-            FEE_BPS
         );
-        house::approve_game(aptosino, TestGame {});
+        house::approve_game(aptosino, FEE_BPS, TestGame {});
         state_based_game::init(aptosino, TestGame {});
         state_based_game::init(aptosino, TestGame {});
     }
@@ -76,9 +73,8 @@ module aptosino::test_state_based_game {
             MIN_BET,
             MAX_BET,
             MAX_MULTIPLIER,
-            FEE_BPS
         );
-        house::approve_game(aptosino, TestGame {});
+        house::approve_game(aptosino, FEE_BPS, TestGame {});
         state_based_game::init(aptosino, TestGame {});
     }
     
@@ -103,8 +99,7 @@ module aptosino::test_state_based_game {
             INITIAL_DEPOSIT,
             MIN_BET,
             MAX_BET,
-            MAX_MULTIPLIER,
-            FEE_BPS
+            MAX_MULTIPLIER
         );
         state_based_game::create_game(player, BET_AMOUNT, TestGame {});
     }
@@ -124,7 +119,7 @@ module aptosino::test_state_based_game {
         state_based_game::create_game(player, BET_AMOUNT, TestGame {});
         state_based_game::resolve_game(@0x101, 2, 1, TestGame {});
         assert!(state_based_game::get_is_player_in_game<TestGame>(@0x101) == false, 0);
-        let fee = house::get_fee_amount(BET_AMOUNT);
+        let fee = house::get_fee_amount<TestGame>(BET_AMOUNT);
         assert!(coin::balance<AptosCoin>(@0x101) == player_balance_before + BET_AMOUNT - fee, 0);
     }
     
@@ -154,9 +149,8 @@ module aptosino::test_state_based_game {
             MIN_BET,
             MAX_BET,
             MAX_MULTIPLIER,
-            FEE_BPS
         );
-        house::approve_game(aptosino, TestGame {});
+        house::approve_game(aptosino, FEE_BPS, TestGame {});
         state_based_game::init(aptosino, TestGame {});
         state_based_game::resolve_game(@0x101, 1, 1, TestGame {});
     }
@@ -172,9 +166,8 @@ module aptosino::test_state_based_game {
             MIN_BET,
             MAX_BET,
             MAX_MULTIPLIER,
-            FEE_BPS
         );
-        house::approve_game(aptosino, TestGame {});
+        house::approve_game(aptosino, FEE_BPS, TestGame {});
         state_based_game::init(aptosino, TestGame {});
         state_based_game::get_player_game_address<TestGame>(@0x101);
     }

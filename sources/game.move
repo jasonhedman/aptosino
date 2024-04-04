@@ -23,11 +23,11 @@ module aptosino::game {
     
     // structs
 
-    /// The game struct
+    /// An instance of a game
     struct Game has store {
         /// The address of the player
         player_address: address,
-        /// coin bet
+        /// the wager for the game
         bet: Coin<AptosCoin>
     }
     

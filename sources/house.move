@@ -4,6 +4,7 @@ module aptosino::house {
     use std::option;
     use std::signer;
     use std::string;
+    use aptos_std::math64;
 
     use aptos_framework::account::{Self, SignerCapability};
     use aptos_framework::aptos_coin::AptosCoin;
@@ -41,11 +42,11 @@ module aptosino::house {
     /// The bet multiplier exceeds the maximum multiplier allowed
     const EBetExceedsMaxMultiplier: u64 = 110;
 
-    /// Data stored on the house resource account
+    /// The house resource which defines the betting parameters
     struct House has key {
-        /// The address of the admin of the house; the admin can withdraw the accrued fees and set the parameters of the house
+        /// The admin can approve games and update the house parameters
         admin_address: address,
-        /// The signer capability of the house, used to withdraw the accrued fees and pay out winnings
+        /// The signer capability of the house account
         signer_cap: SignerCapability,
         /// The minimum bet allowed
         min_bet: u64,
@@ -53,8 +54,19 @@ module aptosino::house {
         max_bet: u64,
         /// The maximum multiplier allowed
         max_multiplier: u64,
-        /// The fee in basis points
+    }
+    
+    /// A game approved by the house
+    struct ApprovedGame<phantom GameType: drop> has key {
+        /// The vig in basis points
         fee_bps: u64,
+    }
+    
+    /// A coin that represents claim to a portion of the house's holdings
+    struct HouseShares has drop {}
+    
+    /// The capabiliteis that govern the supply of HouseShares
+    struct HouseSharesCaps has key {
         /// The mint capability for house shares coin
         mint_cap: MintCapability<HouseShares>,
         /// The burn capability for house shares coin
@@ -62,12 +74,6 @@ module aptosino::house {
         /// The freeze capability for house shares coin
         freeze_cap: FreezeCapability<HouseShares>,
     }
-    
-    /// A game approved by the house
-    struct ApprovedGame<phantom GameType: drop> has key {}
-    
-    /// A struct representing a share of the house
-    struct HouseShares has drop {}
     
     // initialization
 
@@ -84,9 +90,8 @@ module aptosino::house {
         min_bet: u64,
         max_bet: u64,
         max_multiplier: u64,
-        fee_bps: u64
-    ) 
-    acquires House {
+    )
+    acquires HouseSharesCaps {
         assert_signer_is_deployer(deployer);
 
         let (resourse_acc, signer_cap) = account::create_resource_account(deployer, ACCOUNT_SEED);
@@ -107,7 +112,9 @@ module aptosino::house {
             min_bet,
             max_bet,
             max_multiplier,
-            fee_bps,
+        });
+        
+        move_to(&resourse_acc, HouseSharesCaps {
             mint_cap,
             burn_cap,
             freeze_cap
@@ -131,7 +138,7 @@ module aptosino::house {
         payout_denominator: u64,
         _witness: GameType
     )
-    acquires House {
+    acquires House, ApprovedGame {
         assert_game_is_approved<GameType>();
         
         let house = borrow_global_mut<House>(get_house_address());
@@ -143,10 +150,12 @@ module aptosino::house {
         coin::deposit(get_house_address(), bet);
         assert_house_has_enough_balance(bet_amount, payout_numerator, payout_denominator);
         
-        let fee = bet_amount * house.fee_bps / FEE_BPS_DIVISOR;
+        let approved_game = borrow_global<ApprovedGame<GameType>>(get_house_address());
+        
+        let fee = bet_amount * approved_game.fee_bps / FEE_BPS_DIVISOR;
         
         if(payout_numerator > 0) {
-            let payout = bet_amount * payout_numerator / payout_denominator - fee;
+            let payout = math64::mul_div(bet_amount, payout_numerator, payout_denominator) - fee;
             coin::deposit(
                 bettor, 
                 coin::withdraw<AptosCoin>(&account::create_signer_with_capability(&house.signer_cap), payout)
@@ -159,11 +168,13 @@ module aptosino::house {
     /// Approves a game to access the house
     /// * signer: the signer of the admin account
     /// * _witness: an instance of the GameType struct, enforces that the call is made from the correct game module
-    public fun approve_game<GameType: drop>(signer: &signer, _witness: GameType) acquires House {
+    public fun approve_game<GameType: drop>(signer: &signer, fee_bps: u64, _witness: GameType) acquires House {
         assert_signer_is_admin(signer);
         assert_game_is_not_approved<GameType>();
         let house = borrow_global<House>(get_house_address());
-        move_to(&account::create_signer_with_capability(&house.signer_cap), ApprovedGame<GameType> {});
+        move_to(&account::create_signer_with_capability(&house.signer_cap), ApprovedGame<GameType> {
+            fee_bps
+        });
     }
     
     /// Revokes the approval of a game
@@ -171,7 +182,7 @@ module aptosino::house {
     public entry fun revoke_game<GameType: drop>(signer: &signer) acquires House, ApprovedGame {
         assert_signer_is_admin(signer);
         assert_game_is_approved<GameType>();
-        let ApprovedGame<GameType> {} = move_from<ApprovedGame<GameType>>(get_house_address());
+        let ApprovedGame<GameType> { fee_bps: _} = move_from<ApprovedGame<GameType>>(get_house_address());
     }
     
     // house shares functions
@@ -179,7 +190,7 @@ module aptosino::house {
     /// Adds coins to the house resource account
     /// * signer: the signer of the admin account
     /// * amount: the amount of coins to add
-    public entry fun deposit(signer: &signer, amount: u64) acquires House {
+    public entry fun deposit(signer: &signer, amount: u64) acquires HouseSharesCaps {
         assert_coin_amount_valid(amount);
         let player_address = signer::address_of(signer);
         assert_signer_has_sufficient_balance<AptosCoin>(player_address, amount);
@@ -188,18 +199,19 @@ module aptosino::house {
         };
         coin::deposit(player_address, coin::mint(
             get_house_shares_amount_from_deposit_amount(amount),
-            &borrow_global<House>(get_house_address()).mint_cap
+            &borrow_global<HouseSharesCaps>(get_house_address()).mint_cap
         ));
         coin::transfer<AptosCoin>(signer, get_house_address(), amount);
     }
 
     /// Withdraws the accrued fees from the house resource account
     /// * signer: the signer of the admin account
-    public entry fun withdraw(signer: &signer, shares_amount: u64) acquires House {
+    public entry fun withdraw(signer: &signer, shares_amount: u64) acquires House, HouseSharesCaps {
         assert_coin_amount_valid(shares_amount);
         let signer_address = signer::address_of(signer);
         assert_signer_has_sufficient_balance<HouseShares>(signer_address, shares_amount);
-        let house = borrow_global<House>(get_house_address());
+        let house_address = get_house_address();
+        let house = borrow_global<House>(house_address);
         let house_signer = account::create_signer_with_capability(&house.signer_cap);
         coin::transfer<AptosCoin>(
             &house_signer,
@@ -208,7 +220,7 @@ module aptosino::house {
         );
         coin::burn(
             coin::withdraw<HouseShares>(signer, shares_amount),
-            &house.burn_cap
+            &borrow_global<HouseSharesCaps>(house_address).burn_cap
         );
     }
 
@@ -239,9 +251,9 @@ module aptosino::house {
     /// Sets the fee in basis points
     /// * signer: the signer of the admin account
     /// * fee_bps: the fee in basis points
-    public entry fun set_fee_bps(signer: &signer, fee_bps: u64) acquires House {
+    public entry fun set_fee_bps<GameType: drop>(signer: &signer, fee_bps: u64) acquires House, ApprovedGame {
         assert_signer_is_admin(signer);
-        borrow_global_mut<House>(get_house_address()).fee_bps = fee_bps;
+        borrow_global_mut<ApprovedGame<GameType>>(get_house_address()).fee_bps = fee_bps;
     }
 
     /// Sets the maximum multiplier allowed
@@ -286,8 +298,8 @@ module aptosino::house {
 
     #[view]
     /// Returns the maximum bet allowed
-    public fun get_fee_bps(): u64 acquires House {
-        borrow_global<House>(get_house_address()).fee_bps
+    public fun get_fee_bps<GameType: drop>(): u64 acquires ApprovedGame {
+        borrow_global<ApprovedGame<GameType>>(get_house_address()).fee_bps
     }
 
     #[view]
@@ -329,9 +341,8 @@ module aptosino::house {
     #[view]
     /// Returns the fee amount on a bet
     /// * bet_amount: the amount of the bet
-    public fun get_fee_amount(bet_amount: u64): u64 acquires House {
-        let house = borrow_global<House>(get_house_address());
-        bet_amount * house.fee_bps / FEE_BPS_DIVISOR
+    public fun get_fee_amount<GameType: drop>(bet_amount: u64): u64 acquires ApprovedGame {
+        bet_amount * borrow_global<ApprovedGame<GameType>>(get_house_address()).fee_bps / FEE_BPS_DIVISOR
     }
     
     #[view]
@@ -414,7 +425,7 @@ module aptosino::house {
         payout_numerator: u64,
         payout_denominator: u64,
         _witness: GameType
-    ) acquires House {
+    ) acquires House, ApprovedGame {
         pay_out(bettor, bet, payout_numerator, payout_denominator, _witness);
     }
 }

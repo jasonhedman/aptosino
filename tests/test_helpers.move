@@ -29,7 +29,6 @@ module aptosino::test_helpers {
         min_bet: u64, 
         max_bet: u64, 
         max_multiplier: u64, 
-        fee_bps: u64
     ) {
         setup_tests(framework, aptosino, initial_deposit);
         house::init(
@@ -38,7 +37,6 @@ module aptosino::test_helpers {
             min_bet,
             max_bet,
             max_multiplier,
-            fee_bps
         );
     }
 
@@ -50,9 +48,8 @@ module aptosino::test_helpers {
         min_bet: u64,
         max_bet: u64,
         max_multiplier: u64,
-        fee_bps: u64
     ) {
-        setup_house(framework, aptosino, initial_deposit, min_bet, max_bet, max_multiplier, fee_bps);
+        setup_house(framework, aptosino, initial_deposit, min_bet, max_bet, max_multiplier);
         account::create_account_for_test(signer::address_of(player));
         coin::register<AptosCoin>(player);
         aptos_coin::mint(framework, signer::address_of(player), max_bet + 1);

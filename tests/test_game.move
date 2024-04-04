@@ -26,28 +26,27 @@ module aptosino::test_game {
             MIN_BET,
             MAX_BET,
             MAX_MULTIPLIER,
-            FEE_BPS,
         );
     }
     
     #[test(framework=@aptos_framework, aptosino=@aptosino, player=@0x101)]
     fun test_create_and_resolve_game_win(framework: &signer, aptosino: &signer, player: &signer) {
         setup_tests(framework, aptosino, player);
-        house::approve_game(aptosino, TestGame {});
+        house::approve_game(aptosino, FEE_BPS, TestGame {});
         let player_balance_before = coin::balance<AptosCoin>(@0x101);
         let game = game::create_game(player, BET_AMOUNT, TestGame {});
         assert!(game::get_player_address(&game) == @0x101, 0);
         assert!(game::get_bet_amount(&game) == BET_AMOUNT, 0);
         assert!(coin::balance<AptosCoin>(@0x101) == player_balance_before - BET_AMOUNT, 0);
         game::resolve_game(game, 2, 1, TestGame {});
-        let fee = house::get_fee_amount(BET_AMOUNT);
+        let fee = house::get_fee_amount<TestGame>(BET_AMOUNT);
         assert!(coin::balance<AptosCoin>(@0x101) == player_balance_before + BET_AMOUNT - fee, 0);
     }
     
     #[test(framework=@aptos_framework, aptosino=@aptosino, player=@0x101)]
     fun test_create_and_resolve_game_lose(framework: &signer, aptosino: &signer, player: &signer) {
         setup_tests(framework, aptosino, player);
-        house::approve_game(aptosino, TestGame {});
+        house::approve_game(aptosino, FEE_BPS, TestGame {});
         let player_balance_before = coin::balance<AptosCoin>(@0x101);
         let game = game::create_game(player, BET_AMOUNT, TestGame {});
         assert!(game::get_player_address(&game) == @0x101, 0);
@@ -69,7 +68,7 @@ module aptosino::test_game {
     #[expected_failure(abort_code=game::EBetAmountIsZero)]
     fun test_create_game_bet_amount_is_zero(framework: &signer, aptosino: &signer, player: &signer) {
         setup_tests(framework, aptosino, player);
-        house::approve_game(aptosino, TestGame {});
+        house::approve_game(aptosino, FEE_BPS, TestGame {});
         let game = game::create_game(player, 0, TestGame {});
         resolve_game(game, 2, 1, TestGame {})
     }
@@ -78,7 +77,7 @@ module aptosino::test_game {
     #[expected_failure(abort_code=game::EBetAmountLessThanMinimum)]
     fun test_create_game_bet_amount_less_than_min(framework: &signer, aptosino: &signer, player: &signer) {
         setup_tests(framework, aptosino, player);
-        house::approve_game(aptosino, TestGame {});
+        house::approve_game(aptosino, FEE_BPS, TestGame {});
         let game = game::create_game(player, MIN_BET - 1, TestGame {});
         resolve_game(game, 2, 1, TestGame {})
     }
@@ -87,7 +86,7 @@ module aptosino::test_game {
     #[expected_failure(abort_code=game::EBetAmountGreaterThanMaximum)]
     fun test_create_game_bet_amount_greater_than_max(framework: &signer, aptosino: &signer, player: &signer) {
         setup_tests(framework, aptosino, player);
-        house::approve_game(aptosino, TestGame {});
+        house::approve_game(aptosino, FEE_BPS, TestGame {});
         let game = game::create_game(player, MAX_BET + 1, TestGame {});
         resolve_game(game, 2, 1, TestGame {})
     }
@@ -96,7 +95,7 @@ module aptosino::test_game {
     #[expected_failure(abort_code=game::EPlayerInsufficientBalance)]
     fun test_create_game_insufficient_balance(framework: &signer, aptosino: &signer, player: &signer) {
         setup_tests(framework, aptosino, player);
-        house::approve_game(aptosino, TestGame {});
+        house::approve_game(aptosino, FEE_BPS, TestGame {});
         coin::transfer<AptosCoin>(player, @aptosino, 100);
         let game = game::create_game(player, MAX_BET, TestGame {});
         resolve_game(game, 2, 1, TestGame {})

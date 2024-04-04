@@ -6,6 +6,7 @@ module aptosino::test_mines {
     
     use aptos_framework::aptos_coin::AptosCoin;
     use aptos_framework::coin;
+    use aptosino::mines::MinesGame;
 
     use aptosino::test_helpers;
     use aptosino::house;
@@ -28,9 +29,8 @@ module aptosino::test_mines {
             MIN_BET,
             MAX_BET,
             MAX_MULTIPLIER,
-            FEE_BPS,
         );
-        mines::approve_game(aptosino);
+        mines::approve_game(aptosino, FEE_BPS);
         mines::init(aptosino);
     }
     
@@ -130,7 +130,7 @@ module aptosino::test_mines {
         let (payout_numerator, payout_denominator) = mines::get_payout_multiplier(
             mines::get_mines_board_object(player_address),
         );
-        let fee = house::get_fee_amount(BET_AMOUNT);
+        let fee = house::get_fee_amount<MinesGame>(BET_AMOUNT);
         
         mines::cash_out(player);
         
@@ -153,7 +153,7 @@ module aptosino::test_mines {
         let (payout_numerator, payout_denominator) = mines::get_payout_multiplier(
             mines::get_mines_board_object(player_address),
         );
-        let fee = house::get_fee_amount(BET_AMOUNT);
+        let fee = house::get_fee_amount<MinesGame>(BET_AMOUNT);
         
         mines::cash_out(player);
         
