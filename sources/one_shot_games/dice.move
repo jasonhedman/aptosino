@@ -1,7 +1,8 @@
 module aptosino::dice {
     
     use std::signer;
-    
+    use aptos_std::math64;
+
     use aptos_framework::event;
     use aptos_framework::randomness;
 
@@ -38,8 +39,8 @@ module aptosino::dice {
     
     /// Approves the dice game on the house module
     /// * admin: the signer of the admin account
-    public entry fun approve_game(admin: &signer) {
-        house::approve_game<DiceGame>(admin, DiceGame{});
+    public entry fun approve_game(admin: &signer, fee_bps: u64) {
+        house::approve_game<DiceGame>(admin, fee_bps, DiceGame {});
     }
     
     // game functions
@@ -102,7 +103,7 @@ module aptosino::dice {
     /// * predicted_outcome: the number the player predicts the roll will be less than
     public fun get_payout(bet_amount: u64, max_outcome: u64, predicted_outcome: u64): u64 {
         if (predicted_outcome < max_outcome) {
-            bet_amount * max_outcome / predicted_outcome - house::get_fee_amount(bet_amount)
+            math64::mul_div(bet_amount, max_outcome, predicted_outcome) - house::get_fee_amount<DiceGame>(bet_amount)
         } else {
             0
         }

@@ -27,11 +27,9 @@ module aptosino::state_based_game {
     // structs
     
     /// A game object
-    struct GameObject has store {
+    struct GameObject has key {
         /// The game object
         game: Game,
-        /// The game object address
-        game_address: address,
         /// The delete reference for after the game is resolved
         delete_ref: DeleteRef,
     }
@@ -39,7 +37,7 @@ module aptosino::state_based_game {
     /// A mapping from player address to game object address
     struct GameMapping<phantom GameType: drop> has key {
         /// The mapping from player address to game object address
-        mapping: SmartTable<address, GameObject>
+        mapping: SmartTable<address, address>
     }
     
     /// Initializes a new state-based game for the given game type
@@ -77,11 +75,17 @@ module aptosino::state_based_game {
         let game_struct_address = type_info::account_address(&type_info::type_of<GameType>());
         
         let game_mapping = borrow_global_mut<GameMapping<GameType>>(game_struct_address);
-        smart_table::add(&mut game_mapping.mapping, player_address, GameObject {
+        
+        move_to(&object::generate_signer(&constructor_ref), GameObject {
             game,
-            game_address: object::address_from_constructor_ref(&constructor_ref),
             delete_ref: object::generate_delete_ref(&constructor_ref)
         });
+        
+        smart_table::add(
+            &mut game_mapping.mapping, 
+            player_address, 
+            object::address_from_constructor_ref(&constructor_ref)
+        );
         
         constructor_ref
     }
@@ -96,16 +100,17 @@ module aptosino::state_based_game {
         payout_numerator: u64,
         payout_denominator: u64,
         witness: GameType
-    ) acquires GameMapping {
+    ) acquires GameMapping, GameObject {
         assert_game_initialized<GameType>();
         assert_player_in_game<GameType>(player_address);
         let game_struct_address = type_info::account_address(&type_info::type_of<GameType>());
         let game_mapping = borrow_global_mut<GameMapping<GameType>>(game_struct_address);
-        let GameObject { 
+        let game_address = smart_table::remove(&mut game_mapping.mapping, player_address);
+        
+        let GameObject {
             game,
-            game_address: _,
             delete_ref
-        } = smart_table::remove(&mut game_mapping.mapping, player_address);
+        } = move_from<GameObject>(game_address);
         
         game::resolve_game(game, payout_numerator, payout_denominator, witness);
         
@@ -138,18 +143,19 @@ module aptosino::state_based_game {
         assert_player_in_game<GameType>(player);
         let game_struct_address = type_info::account_address(&type_info::type_of<GameType>());
         let game_mapping = borrow_global<GameMapping<GameType>>(game_struct_address);
-        smart_table::borrow(&game_mapping.mapping, player).game_address
+        *smart_table::borrow(&game_mapping.mapping, player)
     }
     
     #[view]
     /// Returns the bet amount for a given player and game type
     /// * player: the address of the player
-    public fun get_player_bet_amount<GameType: drop>(player: address): u64 acquires GameMapping {
+    public fun get_player_bet_amount<GameType: drop>(player: address): u64 acquires GameMapping, GameObject {
         assert_game_initialized<GameType>();
         assert_player_in_game<GameType>(player);
         let game_struct_address = type_info::account_address(&type_info::type_of<GameType>());
         let game_mapping = borrow_global<GameMapping<GameType>>(game_struct_address);
-        game::get_bet_amount(&smart_table::borrow(&game_mapping.mapping, player).game)
+        let game_address = *smart_table::borrow(&game_mapping.mapping, player);
+        game::get_bet_amount(&borrow_global<GameObject>(game_address).game)
     }
     
     #[view]
@@ -159,6 +165,14 @@ module aptosino::state_based_game {
         assert_game_initialized<GameType>();
         assert_player_in_game<GameType>(player_address);
         object::address_to_object<Game>(get_player_game_address<GameType>(player_address))
+    }
+    
+    #[view]
+    /// Returns the player address for a given game object
+    /// * game_object: the game object
+    public fun get_player_address(game_object_address: address): address acquires GameObject {
+        let game_object = borrow_global<GameObject>(game_object_address);
+        game::get_player_address(&game_object.game)
     }
     
     

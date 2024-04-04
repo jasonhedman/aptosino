@@ -27,8 +27,10 @@ module aptosino::test_dice {
             MIN_BET,
             MAX_BET,
             MAX_MULTIPLIER,
-            FEE_BPS,
         );
+        dice::approve_game(aptosino, FEE_BPS);
+        
+        
         let fee = test_helpers::get_fee(BET_AMOUNT, FEE_BPS, FEE_DIVISOR);
         
         let payout = dice::get_payout(BET_AMOUNT, 100, 50);
@@ -61,10 +63,9 @@ module aptosino::test_dice {
             MIN_BET,
             MAX_BET,
             MAX_MULTIPLIER,
-            FEE_BPS,
         );
 
-        dice::approve_game(aptosino);
+        dice::approve_game(aptosino, FEE_BPS);
 
         let house_balance = house::get_house_balance();
         let user_balance = coin::balance<AptosCoin>(signer::address_of(player));
@@ -156,9 +157,8 @@ module aptosino::test_dice {
             MIN_BET,
             MAX_BET,
             MAX_MULTIPLIER,
-            FEE_BPS,
         );
-        dice::approve_game(aptosino);
+        dice::approve_game(aptosino, FEE_BPS);
         dice::test_roll_dice_entry(player, BET_AMOUNT, 2, 1);
     }
 }
